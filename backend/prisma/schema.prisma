@@ -1,0 +1,680 @@
+// Schéma Prisma adapté pour SQLite (développement local sans installation)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Modèle Utilisateur
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String
+  role      String     // PATIENT, DOCTOR, HOSPITAL_ADMIN, ADMIN
+  status    String     @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  
+  // Profil
+  firstName String
+  lastName  String
+  phone     String
+  dateOfBirth DateTime?
+  gender    String?    // MALE, FEMALE, OTHER
+  
+  // Adresse
+  street    String?
+  city      String
+  region    String
+  country   String    @default("Sénégal")
+  
+  profileImage String?
+  
+  // Relations
+  doctorInfo      DoctorInfo?
+  patientInfo     PatientInfo?
+  appointmentsAsPatient Appointment[] @relation("PatientAppointments")
+  appointmentsAsDoctor  Appointment[] @relation("DoctorAppointments")
+  medicalRecords  MedicalRecord[]
+  emergencyRequests EmergencyRequest[]
+  sentMessages    Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  subscription    Subscription?
+  dependents      Dependent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([email])
+  @@index([role])
+  @@index([region])
+}
+
+// Informations spécifiques aux médecins
+model DoctorInfo {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specialization        String
+  licenseNumber         String   @unique
+  hospitalAffiliation   String?
+  consultationFee       Float?
+  yearsOfExperience     Int?
+  bio                   String?
+
+  // Statut de vérification (PENDING | APPROVED | REJECTED)
+  verificationStatus    String   @default("PENDING")
+  verificationNote      String?
+  verifiedAt            DateTime?
+
+  // Disponibilités
+  availabilities        DoctorAvailability[]
+  hospitalAffiliations  HospitalDoctor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DoctorAvailability {
+  id          String     @id @default(uuid())
+  doctorId    String
+  doctor      DoctorInfo @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  dayOfWeek   String     // Monday, Tuesday, etc.
+  startTime   String     // HH:mm format
+  endTime     String     // HH:mm format
+  
+  @@index([doctorId])
+}
+
+// Informations spécifiques aux patients
+model PatientInfo {
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  bloodGroup        String?
+  allergies         String? // Stocké comme string séparé par virgules
+  chronicConditions String? // Stocké comme string séparé par virgules
+  
+  // Contact d'urgence
+  emergencyContactName         String?
+  emergencyContactPhone        String?
+  emergencyContactRelationship String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modèle Rendez-vous
+model Appointment {
+  id              String            @id @default(uuid())
+  patientId       String
+  doctorId        String
+  hospitalId      String?
+  
+  patient         User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor          User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  hospital        Hospital?         @relation(fields: [hospitalId], references: [id])
+  
+  appointmentDate DateTime
+  appointmentTime String            // HH:mm format
+  duration        Int               @default(30) // en minutes
+  type            String            // CONSULTATION, FOLLOW_UP, EMERGENCY, ROUTINE_CHECKUP, TELECONSULTATION
+  status          String            @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW
+  
+  reason          String
+  notes           String?
+  doctorNotes     String?
+  
+  // Prescription
+  prescriptions   Prescription[]
+  
+  reminderSent      Boolean @default(false)
+  confirmationSent  Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([appointmentDate])
+  @@index([status])
+}
+
+// Prescriptions
+model Prescription {
+  id            String      @id @default(uuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  
+  medications   String      // JSON stocké comme string
+  instructions  String?
+
+  items         PrescriptionItem[]
+
+  createdAt DateTime @default(now())
+
+  @@index([appointmentId])
+}
+
+// Dossiers médicaux
+model MedicalRecord {
+  id            String   @id @default(uuid())
+  patientId     String
+  doctorId      String
+  appointmentId String?
+  
+  patient       User     @relation(fields: [patientId], references: [id])
+  
+  recordDate    DateTime
+  recordType    String   // consultation, prescription, lab_result, etc.
+  
+  diagnosis     String?
+  symptoms      String?  // Stocké comme string séparé par virgules
+  
+  // Signes vitaux (JSON stocké comme string)
+  vitalSigns    String?
+  
+  notes         String
+  
+  // Fichiers attachés
+  attachments   Attachment[]
+  
+  followUpRequired Boolean  @default(false)
+  followUpDate     DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([recordDate])
+}
+
+model Attachment {
+  id              String        @id @default(uuid())
+  medicalRecordId String
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  
+  fileName  String
+  fileUrl   String
+  fileType  String
+  fileSize  Int
+  
+  uploadedAt DateTime @default(now())
+  
+  @@index([medicalRecordId])
+}
+
+// Modèle Hôpital
+model Hospital {
+  id          String       @id @default(uuid())
+  name        String
+  type        String       // PUBLIC, PRIVATE, CLINIC, HEALTH_CENTER
+  region      String
+  
+  // Contact
+  phone          String
+  email          String?
+  emergencyPhone String
+  
+  // Localisation
+  address   String
+  city      String
+  latitude  Float
+  longitude Float
+  
+  // Services et spécialisations (séparés par virgules)
+  services         String
+  specializations  String
+  facilities       String
+  
+  // Disponibilités
+  totalBeds        Int
+  availableBeds    Int
+  emergencyAvailable Boolean @default(true)
+  ambulanceAvailable Boolean @default(false)
+  
+  // Horaires d'ouverture (JSON stocké comme string)
+  openingHours String
+  
+  // Capacité d'urgence
+  canAcceptEmergency Boolean   @default(true)
+  waitingTime        Int?      // en minutes
+  capacityUpdatedAt  DateTime  @default(now())
+  
+  // Informations additionnelles
+  website      String?
+  description  String?
+  verified     Boolean @default(false)
+  rating       Float?
+  
+  // Relations
+  appointments      Appointment[]
+  emergencyRequests EmergencyRequest[]
+  doctorAffiliations HospitalDoctor[]
+  beds              HospitalBed[]
+  inventory         InventoryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([region])
+  @@index([type])
+  @@index([emergencyAvailable])
+}
+
+// Table de liaison Médecin ↔ Hôpital (many-to-many)
+model HospitalDoctor {
+  id         String     @id @default(uuid())
+  doctorId   String
+  hospitalId String
+  doctor     DoctorInfo @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  role       String     @default("AFFILIATED") // AFFILIATED, CHIEF, CONSULTANT
+  joinedAt   DateTime   @default(now())
+
+  @@unique([doctorId, hospitalId])
+  @@index([doctorId])
+  @@index([hospitalId])
+}
+
+// Demandes d'urgence
+model EmergencyRequest {
+  id        String          @id @default(uuid())
+  patientId String?
+  patient   User?           @relation(fields: [patientId], references: [id])
+  
+  // Informations patient
+  patientName  String
+  patientAge   Int?
+  patientGender String?
+  patientPhone String
+  bloodGroup   String?
+  
+  // Localisation
+  address   String?
+  city      String
+  region    String
+  latitude  Float
+  longitude Float
+  
+  // Détails de l'urgence (séparés par virgules ou JSON string)
+  symptoms      String
+  description   String
+  level         String     // CRITICAL, URGENT, SEMI_URGENT, NON_URGENT
+  hasInjury     Boolean
+  isConscious   Boolean
+  canMove       Boolean
+  needsAmbulance Boolean
+  
+  // Hôpital assigné
+  assignedHospitalId String?
+  assignedHospital   Hospital? @relation(fields: [assignedHospitalId], references: [id])
+  distance           Float?    // en km
+  estimatedArrival   Int?      // en minutes
+  
+  status        String          @default("PENDING") // PENDING, ASSIGNED, IN_TRANSIT, ARRIVED, COMPLETED, CANCELLED
+  priorityScore Int             // 1-10
+  
+  // Réponses au formulaire (JSON stocké comme string)
+  formResponses String
+  
+  // Timeline (JSON array stocké comme string)
+  timeline String
+  
+  completedAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([patientId])
+  @@index([status])
+  @@index([level])
+  @@index([region])
+  @@index([createdAt])
+}
+
+// ── Signes vitaux ─────────────────────────────────────────────────────────────
+model VitalSigns {
+  id            String   @id @default(uuid())
+  patientId     String
+  doctorId      String
+  appointmentId String?
+  recordedAt    DateTime @default(now())
+
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+  heartRate              Int?
+  temperature            Float?
+  oxygenSaturation       Int?
+  weight                 Float?
+  height                 Float?
+  bloodGlucose           Float?
+  respiratoryRate        Int?
+
+  notes         String?
+
+  @@index([patientId])
+  @@index([recordedAt])
+}
+
+// ── Résultats de laboratoire ──────────────────────────────────────────────────
+model LabResult {
+  id              String   @id @default(uuid())
+  patientId       String
+  requestedById   String
+  medicalRecordId String?
+
+  testName        String
+  testCategory    String   // HEMATOLOGIE, BIOCHIMIE, MICROBIOLOGIE, IMAGERIE, ANATOMOPATHOLOGIE
+  laboratory      String?
+  requestedAt     DateTime @default(now())
+  resultDate      DateTime?
+
+  results         String   // JSON: [{parameter, value, unit, referenceRange, isAbnormal}]
+  interpretation  String?
+  critical        Boolean  @default(false)
+  fileUrl         String?
+  status          String   @default("PENDING") // PENDING, RECEIVED, VALIDATED, CRITICAL
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([testCategory])
+  @@index([critical])
+  @@index([status])
+}
+
+// ── Prescriptions enrichies ───────────────────────────────────────────────────
+model PrescriptionItem {
+  id             String @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  medicationName String
+  genericName    String?
+  dosage         String
+  frequency      String
+  duration       String
+  route          String   @default("ORAL") // ORAL, IV, IM, TOPIQUE, SUBLINGUAL
+  quantity       Int?
+  instructions   String?
+  interactions   String?  // Alertes d'interaction détectées
+
+  @@index([prescriptionId])
+}
+
+// ── Gestion des lits ──────────────────────────────────────────────────────────
+model HospitalBed {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  bedNumber    String
+  ward         String   // URGENCES, MEDECINE, CHIRURGIE, MATERNITE, REA, PEDIATRIE
+  bedType      String   @default("STANDARD") // STANDARD, ICU, ISOLATION, MATERNITY, RECOVERY
+
+  status       String   @default("AVAILABLE") // AVAILABLE, OCCUPIED, MAINTENANCE, RESERVED
+  patientName  String?
+  admittedAt   DateTime?
+  expectedDischarge DateTime?
+  notes        String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([hospitalId, bedNumber])
+  @@index([hospitalId])
+  @@index([status])
+  @@index([ward])
+}
+
+// ── Gestion des stocks ────────────────────────────────────────────────────────
+model InventoryItem {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  name         String
+  category     String   // MEDICAMENT, CONSOMMABLE, EQUIPEMENT, REACTIF
+  reference    String?
+  quantity     Int      @default(0)
+  minThreshold Int      @default(10)
+  unit         String   @default("unité")
+  expiryDate   DateTime?
+  supplier     String?
+  unitCost     Float?
+
+  movements    InventoryMovement[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([hospitalId])
+  @@index([category])
+}
+
+model InventoryMovement {
+  id          String        @id @default(uuid())
+  itemId      String
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  type        String        // IN, OUT, ADJUSTMENT, EXPIRED, RETURNED
+  quantity    Int
+  reason      String?
+  performedBy String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+// ── Facturation ───────────────────────────────────────────────────────────────
+model Invoice {
+  id             String        @id @default(uuid())
+  patientId      String
+  doctorId       String?
+  hospitalId     String?
+  appointmentId  String?
+
+  invoiceNumber  String        @unique
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime?
+
+  items          InvoiceItem[]
+
+  subtotal       Float
+  tax            Float         @default(0)
+  discount       Float         @default(0)
+  total          Float
+
+  currency       String        @default("XOF")
+  status         String        @default("DRAFT") // DRAFT, SENT, PAID, PARTIAL, OVERDUE, CANCELLED
+  paymentMethod  String?
+  paidAt         DateTime?
+  notes          String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  cimCode     String?  // Code CIM-10
+  quantity    Int      @default(1)
+  unitPrice   Float
+  total       Float
+
+  @@index([invoiceId])
+}
+
+// ── Journal d'audit ───────────────────────────────────────────────────────────
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  userRole    String?
+  action      String   // READ_RECORD, CREATE_PRESCRIPTION, ACCESS_LAB, etc.
+  resource    String
+  resourceId  String?
+  details     String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// ── Télémédecine ──────────────────────────────────────────────────────────────
+model TelemedicineSession {
+  id            String   @id @default(uuid())
+  appointmentId String   @unique
+  roomId        String   @unique
+  patientId     String
+  doctorId      String
+
+  scheduledAt   DateTime
+  duration      Int      @default(30)
+  status        String   @default("SCHEDULED") // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+
+  joinUrlPatient String?
+  joinUrlDoctor  String?
+  recordingUrl   String?
+  summary        String?
+
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+}
+
+// ── Messagerie ────────────────────────────────────────────────────────────────
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender     User @relation("SentMessages",    fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver   User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+// ── Dépendants (enfants 0-15 ans) ─────────────────────────────────────────────
+model Dependent {
+  id           String   @id @default(uuid())
+  patientId    String
+  patient      User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime
+  gender       String?  // MALE, FEMALE
+  relationship String   @default("CHILD") // CHILD, SIBLING, OTHER
+
+  bloodGroup        String?
+  allergies         String?  // séparé par virgules
+  chronicConditions String?
+  notes             String?
+
+  medicalRecords DependentMedicalRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+}
+
+model DependentMedicalRecord {
+  id          String    @id @default(uuid())
+  dependentId String
+  dependent   Dependent @relation(fields: [dependentId], references: [id], onDelete: Cascade)
+  doctorId    String?
+
+  recordDate  DateTime
+  recordType  String    // consultation, vaccination, checkup, prescription, lab_result
+
+  diagnosis   String?
+  symptoms    String?
+  vitalSigns  String?   // JSON: {weight, height, temperature, heartRate, oxygenSaturation}
+  notes       String
+
+  weight      Float?
+  height      Float?
+  temperature Float?
+
+  followUpRequired Boolean  @default(false)
+  followUpDate     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dependentId])
+  @@index([recordDate])
+}
+
+// ── Agent IA santé ─────────────────────────────────────────────────────────────
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  role      String   // user, assistant
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ── Souscriptions ─────────────────────────────────────────────────────────────
+model Subscription {
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan               String    // PATIENT (5000 FCFA/an), DOCTOR (15000 FCFA/an)
+  status             String    @default("PENDING") // PENDING, ACTIVE, EXPIRED, CANCELLED
+  subscriptionNumber String    @unique
+
+  amount             Float     // 5000 ou 15000
+  currency           String    @default("FCFA")
+  paymentMethod      String    // ORANGE_MONEY, WAVE, CARD, APPLE_PAY, GOOGLE_PAY
+  paymentReference   String?
+  paymentStatus      String    @default("PENDING") // PENDING, SUCCESS, FAILED
+
+  startDate          DateTime?
+  endDate            DateTime?
+  autoRenew          Boolean   @default(false)
+
+  renewalHistory     String    @default("[]") // JSON array des renouvellements
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([endDate])
+  @@index([subscriptionNumber])
+}

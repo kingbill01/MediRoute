@@ -1,0 +1,40 @@
+{
+  "name": "mediroute",
+  "version": "1.0.0",
+  "description": "Plateforme de gestion médicale pour le Sénégal",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "web",
+    "mobile"
+  ],
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../web && npm install && cd ../mobile && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:backend:postgres": "cd backend && npm run dev -- src/server-postgres.ts",
+    "dev:web": "cd web && npm start",
+    "dev:mobile": "cd mobile && npx expo start",
+    "build:backend": "cd backend && npm run build",
+    "build:web": "cd web && npm run build",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f postgres",
+    "prisma:generate": "cd backend && npm run prisma:generate",
+    "prisma:migrate": "cd backend && npm run prisma:migrate",
+    "prisma:studio": "cd backend && npm run prisma:studio",
+    "prisma:seed": "cd backend && npm run prisma:seed",
+    "db:setup": "npm run docker:up && sleep 3 && npm run prisma:migrate && npm run prisma:seed",
+    "db:reset": "cd backend && npm run db:reset"
+  },
+  "keywords": [
+    "healthcare",
+    "telemedicine",
+    "senegal",
+    "medical",
+    "appointments"
+  ],
+  "author": "MediRoute Team",
+  "license": "MIT"
+}
