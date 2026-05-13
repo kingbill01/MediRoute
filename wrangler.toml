@@ -1,0 +1,6 @@
+# Cloudflare Pages configuration
+# Doc: https://developers.cloudflare.com/pages/functions/wrangler-configuration/
+
+name = "mediroute"
+compatibility_date = "2026-05-01"
+pages_build_output_dir = "./web/build"
