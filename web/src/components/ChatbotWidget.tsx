@@ -16,8 +16,85 @@ const QUICK = [
   'Quand aller aux urgences ?',
 ];
 
-const Bubble: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
+// ── Délai de "frappe" par caractère (effet humain) ────────────────────────────
+const getCharDelay = (char: string, prevChar: string): number => {
+  // Pauses fortes à la fin d'une phrase
+  if (prevChar === '.' || prevChar === '!' || prevChar === '?') {
+    if (char === ' ' || char === '\n') return 350 + Math.random() * 200;
+  }
+  // Pauses moyennes après virgule/point-virgule/deux-points
+  if (prevChar === ',' || prevChar === ';' || prevChar === ':') {
+    if (char === ' ') return 150 + Math.random() * 100;
+  }
+  // Pause longue pour les sauts de paragraphe
+  if (prevChar === '\n' && char === '\n') return 500 + Math.random() * 300;
+  // Vitesse normale avec micro-variations
+  return 10 + Math.random() * 20; // 10-30ms par caractère
+};
+
+// ── Hook : anime la frappe d'un texte ────────────────────────────────────────
+const useTypewriter = (fullText: string, enabled: boolean, onComplete?: () => void) => {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipRef = useRef(false);
+
+  useEffect(() => {
+    if (!enabled) { setDisplayed(fullText); setDone(true); return; }
+
+    setDisplayed('');
+    setDone(false);
+    skipRef.current = false;
+    let i = 0;
+
+    const tick = () => {
+      if (skipRef.current) {
+        setDisplayed(fullText);
+        setDone(true);
+        onComplete?.();
+        return;
+      }
+      if (i >= fullText.length) {
+        setDone(true);
+        onComplete?.();
+        return;
+      }
+      const ch = fullText[i];
+      const prev = i > 0 ? fullText[i - 1] : '';
+      i++;
+      setDisplayed(fullText.slice(0, i));
+      timeoutRef.current = setTimeout(tick, getCharDelay(ch, prev));
+    };
+    tick();
+
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullText, enabled]);
+
+  const skip = useCallback(() => { skipRef.current = true; }, []);
+  return { displayed, done, skip };
+};
+
+// ── Curseur clignotant ───────────────────────────────────────────────────────
+const Caret: React.FC = () => (
+  <Box component="span" sx={{
+    display: 'inline-block', width: 6, height: 12,
+    bgcolor: '#00A896', ml: 0.3, verticalAlign: 'middle',
+    animation: 'blink 1s step-end infinite',
+    '@keyframes blink': { '50%': { opacity: 0 } },
+  }} />
+);
+
+const Bubble: React.FC<{
+  msg: ChatMessage;
+  animate?: boolean;
+  onAnimationDone?: () => void;
+}> = ({ msg, animate = false, onAnimationDone }) => {
   const isUser = msg.role === 'user';
+  const fullText = msg.content.replace(/\*\*(.*?)\*\*/g, (_, t) => t);
+  const { displayed, done, skip } = useTypewriter(fullText, animate && !isUser, onAnimationDone);
+  const shown = (animate && !isUser) ? displayed : fullText;
+
   return (
     <Box sx={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', mb: 1, gap: 0.8, alignItems: 'flex-end' }}>
       {!isUser && (
@@ -26,16 +103,26 @@ const Bubble: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
         </Avatar>
       )}
       <Box sx={{ maxWidth: '80%' }}>
-        <Paper elevation={0} sx={{
-          px: 1.5, py: 1, borderRadius: isUser ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-          bgcolor: isUser ? '#0F2D52' : '#f1f3f4',
-        }}>
-          <Typography variant="caption" sx={{ color: isUser ? '#fff' : '#1a1a1a', lineHeight: 1.5, display: 'block', fontSize: 12.5 }}>
-            {msg.content.replace(/\*\*(.*?)\*\*/g, (_, t) => t)}
+        <Paper
+          elevation={0}
+          onClick={animate && !done ? skip : undefined}
+          sx={{
+            px: 1.5, py: 1, borderRadius: isUser ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
+            bgcolor: isUser ? '#0F2D52' : '#f1f3f4',
+            cursor: animate && !done && !isUser ? 'pointer' : 'default',
+          }}>
+          <Typography variant="caption" sx={{
+            color: isUser ? '#fff' : '#1a1a1a',
+            lineHeight: 1.5, display: 'block', fontSize: 12.5,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {shown}
+            {animate && !done && !isUser && <Caret />}
           </Typography>
         </Paper>
         <Typography variant="caption" sx={{ fontSize: 9, color: '#bbb', px: 0.5, display: 'block', textAlign: isUser ? 'right' : 'left' }}>
           {new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+          {animate && !done && !isUser && ' · cliquez pour terminer'}
         </Typography>
       </Box>
     </Box>
@@ -66,6 +153,8 @@ const ChatbotWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [thinking, setThinking] = useState(false); // pause de réflexion avant réponse
+  const [animatingId, setAnimatingId] = useState<string | null>(null); // id du message en cours de frappe
   const [unread, setUnread] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +175,14 @@ const ChatbotWidget: React.FC = () => {
     if (open) { loadHistory(); scrollDown(); if (unread > 0) setUnread(0); }
   }, [open, loadHistory, unread]);
 
-  useEffect(() => { if (open && !minimized) scrollDown(); }, [messages, sending, open, minimized]);
+  useEffect(() => { if (open && !minimized) scrollDown(); }, [messages, sending, thinking, open, minimized]);
+
+  // Pendant la frappe, scroller régulièrement pour suivre le texte
+  useEffect(() => {
+    if (!animatingId) return;
+    const interval = setInterval(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 400);
+    return () => clearInterval(interval);
+  }, [animatingId]);
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
@@ -97,8 +193,18 @@ const ChatbotWidget: React.FC = () => {
     setSending(true);
     scrollDown();
     try {
-      const reply = await chatbotService.sendMessage(content);
+      const [reply] = await Promise.all([
+        chatbotService.sendMessage(content),
+        // Pause de réflexion minimale — l'API peut répondre en 200ms, on attend min ~1s pour l'effet humain
+        new Promise<void>(r => setTimeout(r, 800 + Math.random() * 1200)),
+      ]);
+      // Phase "réflexion" : on garde le typing indicator visible un instant après réception
+      setThinking(true);
+      await new Promise<void>(r => setTimeout(r, 400 + Math.random() * 400));
+      setThinking(false);
+
       setMessages(p => [...p.slice(0, -1), temp, reply]);
+      setAnimatingId(reply.id); // déclenche l'animation de frappe
       if (!open || minimized) setUnread(u => u + 1);
     } catch {
       setMessages(p => p.slice(0, -1));
@@ -180,8 +286,15 @@ const ChatbotWidget: React.FC = () => {
                   </Box>
                 ) : (
                   <>
-                    {messages.map(m => <Bubble key={m.id} msg={m} />)}
-                    {sending && <TypingDots />}
+                    {messages.map(m => (
+                      <Bubble
+                        key={m.id}
+                        msg={m}
+                        animate={m.id === animatingId}
+                        onAnimationDone={() => setAnimatingId(null)}
+                      />
+                    ))}
+                    {(sending || thinking) && <TypingDots />}
                   </>
                 )}
                 <div ref={bottomRef} />
