@@ -1,0 +1,36 @@
+# Render Blueprint — déploiement automatique du backend MediRoute
+# Doc : https://render.com/docs/blueprint-spec
+
+databases:
+  - name: mediroute-db
+    plan: free
+    databaseName: mediroute
+    user: mediroute_user
+    postgresMajorVersion: 15
+
+services:
+  - type: web
+    name: mediroute-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mediroute-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        value: https://mediroute.qzz.io,https://mediroute.pages.dev,http://localhost:3003
+      - key: ANTHROPIC_API_KEY
+        sync: false  # à définir manuellement dans le dashboard Render

@@ -1,8 +1,9 @@
 #!/bin/sh
 set -e
 
-echo "🔄 Running Prisma migrations..."
-npx prisma migrate deploy
+echo "🔄 Synchronizing database schema..."
+# Utilise db push au lieu de migrate (pas besoin de migration files)
+npx prisma db push --accept-data-loss --skip-generate
 
 echo "🚀 Starting MediRoute backend..."
 exec node dist/server-postgres.js
