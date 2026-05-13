@@ -6,6 +6,7 @@ import {
   getRegions,
   createHospital,
   updateHospital,
+  deleteHospital,
   updateEmergencyCapacity,
 } from '../controllers/hospital-postgres.controller';
 import { authenticate } from '../middleware/auth';
@@ -22,5 +23,6 @@ router.get('/:id', getHospitalById);
 router.post('/', authenticate, createHospital);
 router.put('/:id', authenticate, updateHospital);
 router.put('/:id/emergency-capacity', authenticate, updateEmergencyCapacity);
+router.delete('/:id', authenticate, deleteHospital);
 
 export default router;

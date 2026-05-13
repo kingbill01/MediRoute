@@ -225,6 +225,22 @@ const Login: React.FC = () => {
               Créer un compte
             </Link>
           </Typography>
+
+          {/* Lien téléchargement app mobile */}
+          <Box
+            onClick={() => navigate('/mobile-app')}
+            sx={{
+              mt: 2, p: 1.5, borderRadius: 2, border: '1px solid #00A896',
+              bgcolor: '#f0fbf9', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', gap: 1.5, justifyContent: 'center',
+              '&:hover': { bgcolor: '#e0f5f1' },
+            }}>
+            <Typography sx={{ fontSize: 22 }}>📱</Typography>
+            <Typography sx={{ fontSize: 13, color: '#0F2D52', fontWeight: 600 }}>
+              Télécharger l'application mobile
+            </Typography>
+            <Typography sx={{ color: '#00A896', fontWeight: 700 }}>›</Typography>
+          </Box>
         </Box>
       </Box>
     </Box>

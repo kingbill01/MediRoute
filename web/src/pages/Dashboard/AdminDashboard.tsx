@@ -4,17 +4,19 @@ import {
   CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Avatar, MenuItem, Divider, Paper, IconButton, InputAdornment,
   Table, TableBody, TableCell, TableHead, TableRow, Select, FormControl,
+  Drawer, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   LocalHospital, People, ExitToApp,
   Pending, BarChart, MedicalServices,
   CalendarMonth, FiberManualRecord,
-  Hotel, Inventory2, Warning, Add, Edit, AccessTime,
+  Hotel, Inventory2, Warning, Add, Edit,
   Person, Visibility, VisibilityOff, Save, Lock,
   Delete, Search, FilterList, History, TrendingDown,
-  AttachMoney, EventBusy, CardMembership,
+  AttachMoney, EventBusy, CardMembership, Menu as MenuIcon,
 } from '@mui/icons-material';
 import subscriptionService from '../../services/subscriptionService';
+import FacilitiesTab from './tabs/FacilitiesTab';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import authService from '../../services/authService';
@@ -32,13 +34,13 @@ const NAV = [
   { id: 7, icon: <Person />,          label: 'Mon profil' },
 ];
 
-const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, setTab }) => {
+const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; onItemClick?: () => void }> = ({ tab, setTab, onItemClick }) => {
   const navigate = useNavigate();
   const user = authService.getCurrentUser();
   return (
     <Box sx={{
       width: 240, flexShrink: 0, bgcolor: '#0F2D52',
-      display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'sticky', top: 0,
+      display: 'flex', flexDirection: 'column', minHeight: '100vh',
     }}>
       <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box sx={{ width: 36, height: 36, borderRadius: '9px', bgcolor: '#00A896', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -54,7 +56,7 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, 
 
       <Box sx={{ p: 1.5, flex: 1, mt: 1 }}>
         {NAV.map(n => (
-          <Box key={n.id} onClick={() => setTab(n.id)} sx={{
+          <Box key={n.id} onClick={() => { setTab(n.id); onItemClick?.(); }} sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
             px: 2, py: 1.4, borderRadius: 2, cursor: 'pointer', mb: 0.5,
             bgcolor: tab === n.id ? 'rgba(0,168,150,0.18)' : 'transparent',
@@ -398,294 +400,6 @@ const PatientsTab: React.FC = () => {
           </TableBody>
         </Table>
       </Paper>
-    </Box>
-  );
-};
-
-// ── Hôpitaux ──────────────────────────────────────────────────────────────────
-const HospitalsTab: React.FC = () => {
-  const [hospitals, setHospitals] = useState<any[]>([]);
-  const [regions, setRegions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterRegion, setFilterRegion] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [editDialog, setEditDialog] = useState<{ open: boolean; hospital: any }>({ open: false, hospital: null });
-  const [editForm, setEditForm] = useState<any>({});
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    api.get('/hospitals?limit=200').then(r => setHospitals(r.data.data)).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-    api.get('/hospitals/regions').then(r => setRegions(r.data.data)).catch(() => {});
-  }, [load]);
-
-  const filtered = useMemo(() => hospitals.filter(h => {
-    if (search && !h.name?.toLowerCase().includes(search.toLowerCase()) && !h.city?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterRegion && h.region !== filterRegion) return false;
-    if (filterType && h.type !== filterType) return false;
-    return true;
-  }), [hospitals, search, filterRegion, filterType]);
-
-  const kpi = useMemo(() => ({
-    totalHospitals: hospitals.length,
-    totalBeds: hospitals.reduce((s, h) => s + (h.liveBedStats?.total ?? h.totalBeds ?? 0), 0),
-    availBeds: hospitals.reduce((s, h) => s + (h.liveBedStats?.available ?? h.availableBeds ?? 0), 0),
-    emergency: hospitals.filter(h => h.canAcceptEmergency).length,
-  }), [hospitals]);
-
-  const splitChips = (str: string | null | undefined) =>
-    str ? str.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-
-  const openEdit = (h: any) => {
-    setEditForm({
-      totalBeds: h.totalBeds ?? '',
-      availableBeds: h.availableBeds ?? '',
-      specializations: h.specializations ?? '',
-      services: h.services ?? '',
-      waitingTime: h.waitingTime ?? '',
-      canAcceptEmergency: h.canAcceptEmergency ?? false,
-    });
-    setEditDialog({ open: true, hospital: h });
-  };
-
-  const saveEdit = async () => {
-    setSaving(true);
-    try {
-      await api.put(`/hospitals/${editDialog.hospital.id}`, {
-        ...editForm,
-        totalBeds: editForm.totalBeds !== '' ? Number(editForm.totalBeds) : undefined,
-        availableBeds: editForm.availableBeds !== '' ? Number(editForm.availableBeds) : undefined,
-        waitingTime: editForm.waitingTime !== '' ? Number(editForm.waitingTime) : undefined,
-      });
-      toast.success('Hôpital mis à jour');
-      setEditDialog({ open: false, hospital: null });
-      load();
-    } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'Erreur');
-    } finally { setSaving(false); }
-  };
-
-  if (loading) return <Box textAlign="center" py={8}><CircularProgress /></Box>;
-
-  return (
-    <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#0F2D52' }}>Hôpitaux</Typography>
-        <Typography sx={{ color: '#64748B', fontSize: 13.5, mt: 0.3 }}>{hospitals.length} hôpital(aux) référencé(s)</Typography>
-      </Box>
-
-      {/* KPI row */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={3}>
-          <KpiCard label="Hôpitaux" value={kpi.totalHospitals} color="#0F2D52" icon={<LocalHospital />} />
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <KpiCard label="Lits total" value={kpi.totalBeds} color="#4A5568" icon={<Hotel />} />
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <KpiCard label="Lits disponibles" value={kpi.availBeds} color="#00A896" icon={<Hotel />} />
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <KpiCard label="Urgences actives" value={kpi.emergency} color="#D69E2E" icon={<MedicalServices />} />
-        </Grid>
-      </Grid>
-
-      {/* Filters */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
-        <TextField
-          size="small" placeholder="Rechercher par nom ou ville…"
-          value={search} onChange={e => setSearch(e.target.value)}
-          sx={{ flexGrow: 1, minWidth: 220, bgcolor: '#fff', borderRadius: 2, '& fieldset': { borderColor: '#E2E8F0' } }}
-        />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <Select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} displayEmpty
-            sx={{ borderRadius: 2, fontSize: 13.5, bgcolor: '#fff', border: '1px solid #E2E8F0' }}>
-            <MenuItem value=""><em>Toutes régions</em></MenuItem>
-            {regions.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-          </Select>
-        </FormControl>
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <Select value={filterType} onChange={e => setFilterType(e.target.value)} displayEmpty
-            sx={{ borderRadius: 2, fontSize: 13.5, bgcolor: '#fff', border: '1px solid #E2E8F0' }}>
-            <MenuItem value=""><em>Tous types</em></MenuItem>
-            {['PUBLIC', 'PRIVATE', 'CLINIC', 'SPECIALIST'].map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* Hospital cards */}
-      <Grid container spacing={2}>
-        {filtered.map((h: any) => {
-          const live = h.liveBedStats;
-          const total    = live?.total       ?? h.totalBeds     ?? 0;
-          const occupied = live?.occupied    ?? (h.totalBeds && h.availableBeds != null ? h.totalBeds - h.availableBeds : 0);
-          const maintenance = live?.maintenance ?? 0;
-          const reserved    = live?.reserved    ?? 0;
-          const available   = live?.available   ?? h.availableBeds ?? 0;
-          const pct = (n: number) => total ? `${(n / total) * 100}%` : '0%';
-          const specs = splitChips(h.specializations);
-          const svcs  = splitChips(h.services);
-
-          return (
-            <Grid item xs={12} sm={6} lg={4} key={h.id}>
-              <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: 3, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                {/* Header */}
-                <Box sx={{ px: 2.5, py: 2, bgcolor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                  <Box sx={{ width: 36, height: 36, borderRadius: '9px', bgcolor: '#EEF3FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <LocalHospital sx={{ fontSize: 20, color: '#0F2D52' }} />
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13.5, color: '#0F2D52', lineHeight: 1.3 }}>{h.name}</Typography>
-                    <Typography sx={{ fontSize: 11.5, color: '#64748B' }}>{h.type} · {h.city}, {h.region}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                    {h.canAcceptEmergency && (
-                      <Chip label="Urgences" color="success" size="small" sx={{ fontWeight: 700, fontSize: 10 }} />
-                    )}
-                    <IconButton size="small" onClick={() => openEdit(h)} sx={{ color: '#64748B', '&:hover': { color: '#0F2D52' } }}>
-                      <Edit sx={{ fontSize: 16 }} />
-                    </IconButton>
-                  </Box>
-                </Box>
-
-                {/* Body */}
-                <Box sx={{ px: 2.5, py: 2, flex: 1 }}>
-                  {/* Bed capacity bar */}
-                  <Box sx={{ mb: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-                      <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: '#374151' }}>Capacité en lits</Typography>
-                      {h.occupancyRate != null && (
-                        <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>{h.occupancyRate}% occupé</Typography>
-                      )}
-                    </Box>
-                    {total > 0 ? (
-                      <>
-                        <Box sx={{ height: 8, borderRadius: 99, bgcolor: '#E2E8F0', overflow: 'hidden', display: 'flex' }}>
-                          <Box sx={{ height: '100%', bgcolor: '#E53E3E', width: pct(occupied) }} />
-                          <Box sx={{ height: '100%', bgcolor: '#ECC94B', width: pct(maintenance) }} />
-                          <Box sx={{ height: '100%', bgcolor: '#A5B4FC', width: pct(reserved) }} />
-                          <Box sx={{ height: '100%', bgcolor: '#6EE7B7', width: pct(available) }} />
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1.5, mt: 0.75, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: 10.5, color: '#065F46' }}>✓ {available} disponibles</Typography>
-                          <Typography sx={{ fontSize: 10.5, color: '#C53030' }}>● {occupied} occupés</Typography>
-                          {maintenance > 0 && <Typography sx={{ fontSize: 10.5, color: '#92400E' }}>⚙ {maintenance} maint.</Typography>}
-                          <Typography sx={{ fontSize: 10.5, color: '#9CA3AF' }}>/ {total} total</Typography>
-                        </Box>
-                      </>
-                    ) : (
-                      <Typography sx={{ fontSize: 11.5, color: '#CBD5E0', fontStyle: 'italic' }}>Données non renseignées</Typography>
-                    )}
-                  </Box>
-
-                  {/* Specializations */}
-                  {specs.length > 0 && (
-                    <Box sx={{ mb: 1.5 }}>
-                      <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#64748B', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Spécialisations</Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {specs.slice(0, 4).map((s: string) => (
-                          <Chip key={s} label={s} size="small" sx={{ bgcolor: '#CCFBF1', color: '#0F766E', fontSize: 10.5, fontWeight: 600, height: 20 }} />
-                        ))}
-                        {specs.length > 4 && <Chip label={`+${specs.length - 4}`} size="small" sx={{ bgcolor: '#E2E8F0', color: '#64748B', fontSize: 10.5, height: 20 }} />}
-                      </Box>
-                    </Box>
-                  )}
-
-                  {/* Services */}
-                  {svcs.length > 0 && (
-                    <Box>
-                      <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#64748B', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {svcs.slice(0, 3).map((s: string) => (
-                          <Chip key={s} label={s} size="small" sx={{ bgcolor: '#EDE9FE', color: '#5B21B6', fontSize: 10.5, fontWeight: 600, height: 20 }} />
-                        ))}
-                        {svcs.length > 3 && <Chip label={`+${svcs.length - 3}`} size="small" sx={{ bgcolor: '#E2E8F0', color: '#64748B', fontSize: 10.5, height: 20 }} />}
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-
-                {/* Footer */}
-                {h.waitingTime != null && (
-                  <Box sx={{ px: 2.5, py: 1.5, bgcolor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <AccessTime sx={{ fontSize: 14, color: '#64748B' }} />
-                    <Typography sx={{ fontSize: 11.5, color: '#64748B' }}>
-                      Attente estimée : <strong>{h.waitingTime} min</strong>
-                    </Typography>
-                  </Box>
-                )}
-              </Paper>
-            </Grid>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <Grid item xs={12}>
-            <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: 3, py: 8, textAlign: 'center' }}>
-              <LocalHospital sx={{ fontSize: 48, color: '#CBD5E0', mb: 1.5 }} />
-              <Typography sx={{ color: '#9CA3AF', fontSize: 14 }}>Aucun hôpital trouvé pour ces critères</Typography>
-            </Paper>
-          </Grid>
-        )}
-      </Grid>
-
-      {/* Edit dialog */}
-      <Dialog open={editDialog.open} onClose={() => setEditDialog({ open: false, hospital: null })} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 700, color: '#0F2D52' }}>
-          Modifier — {editDialog.hospital?.name}
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={6}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Lits total</Typography>
-              <TextField fullWidth size="small" type="number" value={editForm.totalBeds ?? ''}
-                onChange={e => setEditForm((f: any) => ({ ...f, totalBeds: e.target.value }))} />
-            </Grid>
-            <Grid item xs={6}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Lits disponibles</Typography>
-              <TextField fullWidth size="small" type="number" value={editForm.availableBeds ?? ''}
-                onChange={e => setEditForm((f: any) => ({ ...f, availableBeds: e.target.value }))} />
-            </Grid>
-            <Grid item xs={8}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Temps d'attente (min)</Typography>
-              <TextField fullWidth size="small" type="number" value={editForm.waitingTime ?? ''}
-                onChange={e => setEditForm((f: any) => ({ ...f, waitingTime: e.target.value }))} />
-            </Grid>
-            <Grid item xs={4}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Urgences</Typography>
-              <TextField fullWidth size="small" select value={editForm.canAcceptEmergency ? 'true' : 'false'}
-                onChange={e => setEditForm((f: any) => ({ ...f, canAcceptEmergency: e.target.value === 'true' }))}>
-                <MenuItem value="true">Oui</MenuItem>
-                <MenuItem value="false">Non</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Spécialisations (séparées par virgule)</Typography>
-              <TextField fullWidth size="small" multiline rows={2} value={editForm.specializations ?? ''}
-                onChange={e => setEditForm((f: any) => ({ ...f, specializations: e.target.value }))}
-                placeholder="ex. Cardiologie, Neurologie, Oncologie" />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>Services (séparés par virgule)</Typography>
-              <TextField fullWidth size="small" multiline rows={2} value={editForm.services ?? ''}
-                onChange={e => setEditForm((f: any) => ({ ...f, services: e.target.value }))}
-                placeholder="ex. Radiologie, Laboratoire, Pharmacie" />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={() => setEditDialog({ open: false, hospital: null })} variant="outlined" sx={{ borderColor: '#E2E8F0', color: '#374151' }}>Annuler</Button>
-          <Button variant="contained" onClick={saveEdit} disabled={saving}
-            startIcon={saving ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <Save />}>
-            Enregistrer
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
@@ -1880,18 +1594,37 @@ const ProfileTab: React.FC = () => {
 // ── Dashboard Admin ───────────────────────────────────────────────────────────
 const AdminDashboard: React.FC = () => {
   const [tab, setTab] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F4F6F9' }}>
-      <Sidebar tab={tab} setTab={setTab} />
-      <Box sx={{ flex: 1, p: 4, overflowY: 'auto' }}>
-        {tab === 0 && <StatsTab />}
-        {tab === 1 && <DoctorsTab />}
-        {tab === 2 && <PatientsTab />}
-        {tab === 3 && <HospitalsTab />}
-        {tab === 4 && <BedManagementTab />}
-        {tab === 5 && <InventoryTab />}
-        {tab === 6 && <SubscriptionsTab />}
-        {tab === 7 && <ProfileTab />}
+      {!isMobile && <Sidebar tab={tab} setTab={setTab} />}
+      {isMobile && (
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          <Sidebar tab={tab} setTab={setTab} onItemClick={() => setDrawerOpen(false)} />
+        </Drawer>
+      )}
+
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        {isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, bgcolor: '#0F2D52' }}>
+            <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#fff' }}><MenuIcon /></IconButton>
+            <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>MediRoute Admin</Typography>
+          </Box>
+        )}
+
+        <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+          {tab === 0 && <StatsTab />}
+          {tab === 1 && <DoctorsTab />}
+          {tab === 2 && <PatientsTab />}
+          {tab === 3 && <FacilitiesTab />}
+          {tab === 4 && <BedManagementTab />}
+          {tab === 5 && <InventoryTab />}
+          {tab === 6 && <SubscriptionsTab />}
+          {tab === 7 && <ProfileTab />}
+        </Box>
       </Box>
     </Box>
   );

@@ -9,6 +9,7 @@ import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import FacilityRegister from './pages/Register/FacilityRegister';
 import EmergencyForm from './pages/Emergency/EmergencyForm';
+import MobileAppDownload from './pages/MobileApp/MobileAppDownload';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
 import DoctorDashboard from './pages/Dashboard/DoctorDashboard';
 import PatientDashboard from './pages/Dashboard/PatientDashboard';
@@ -135,6 +136,7 @@ const App: React.FC = () => (
         <Route path={ROUTES.LOGIN} element={<Login />} />
         <Route path={ROUTES.REGISTER} element={<Register />} />
         <Route path="/register/facility" element={<FacilityRegister />} />
+        <Route path="/mobile-app" element={<MobileAppDownload />} />
         <Route path={ROUTES.EMERGENCY} element={<EmergencyForm />} />
         <Route path={ROUTES.DASHBOARD} element={<PrivateRoute><RoleBasedDashboard /></PrivateRoute>} />
         <Route path="/" element={<Navigate to={ROUTES.LOGIN} />} />

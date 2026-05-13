@@ -3,12 +3,12 @@ import {
   Box, Typography, Grid, Card, CardContent, Chip, Button,
   CircularProgress, TextField, MenuItem, Divider, Paper,
   Table, TableBody, TableCell, TableHead, TableRow, Avatar, Alert,
-  Switch, FormControlLabel,
+  Switch, FormControlLabel, Drawer, IconButton, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   Business, Bed, Inventory, LocalHospital, ExitToApp, Save,
   CheckCircle, Pending, Cancel as CancelIcon, Edit, People, Phone,
-  LocationOn, Email, Language, FiberManualRecord,
+  LocationOn, Email, Language, FiberManualRecord, Menu as MenuIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -26,12 +26,12 @@ const NAV = [
 ];
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
-const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; facilityName: string }> = ({ tab, setTab, facilityName }) => {
+const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; facilityName: string; onItemClick?: () => void }> = ({ tab, setTab, facilityName, onItemClick }) => {
   const navigate = useNavigate();
   return (
     <Box sx={{
       width: 250, flexShrink: 0, bgcolor: '#0F2D52', display: 'flex',
-      flexDirection: 'column', minHeight: '100vh', position: 'sticky', top: 0,
+      flexDirection: 'column', minHeight: '100vh',
     }}>
       <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box sx={{ width: 36, height: 36, borderRadius: '9px', bgcolor: '#00A896', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -51,7 +51,7 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; facilityName
 
       <Box sx={{ p: 1.5, flex: 1 }}>
         {NAV.map(n => (
-          <Box key={n.id} onClick={() => setTab(n.id)}
+          <Box key={n.id} onClick={() => { setTab(n.id); onItemClick?.(); }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1.5, px: 1.8, py: 1.3, borderRadius: 2,
               cursor: 'pointer', mb: 0.5,
@@ -95,7 +95,7 @@ const ProfileTab: React.FC<{ facility: any; reload: () => void }> = ({ facility,
     setSaving(true);
     try {
       await facilityService.updateMyFacility({
-        name: form.name, phone: form.phone, emergencyPhone: form.emergencyPhone,
+        name: form.name, type: form.type, phone: form.phone, emergencyPhone: form.emergencyPhone,
         email: form.email, website: form.website, description: form.description,
         address: form.address, totalBeds: form.totalBeds,
         ambulanceAvailable: form.ambulanceAvailable, canAcceptEmergency: form.canAcceptEmergency,
@@ -176,11 +176,22 @@ const ProfileTab: React.FC<{ facility: any; reload: () => void }> = ({ facility,
           <Card sx={{ borderRadius: 3 }}><CardContent>
             <Typography variant="subtitle1" fontWeight={700} color="#0F2D52" mb={2}>Informations générales</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={8}>
+              <Grid item xs={12} sm={6}>
                 <TextField fullWidth label="Nom" value={form.name ?? ''} disabled={!editing}
                   onChange={e => setForm({ ...form, name: e.target.value })} />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} sm={3}>
+                <TextField fullWidth select label="Type *" value={form.type ?? ''} disabled={!editing}
+                  onChange={e => setForm({ ...form, type: e.target.value })}>
+                  <MenuItem value="HOPITAL_PUBLIC">Hôpital Public</MenuItem>
+                  <MenuItem value="HOPITAL_PRIVE">Hôpital Privé</MenuItem>
+                  <MenuItem value="CLINIQUE">Clinique</MenuItem>
+                  <MenuItem value="CENTRE_DE_SANTE">Centre de Santé</MenuItem>
+                  <MenuItem value="DISTRICT_SANITAIRE">District Sanitaire</MenuItem>
+                  <MenuItem value="POSTE_DE_SANTE">Poste de Santé</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={3}>
                 <TextField fullWidth label="Total lits" type="number" value={form.totalBeds ?? 0} disabled={!editing}
                   onChange={e => setForm({ ...form, totalBeds: parseInt(e.target.value) || 0 })} />
               </Grid>
@@ -415,6 +426,10 @@ const HospitalAdminDashboard: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [facility, setFacility] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const loadFacility = useCallback(() => {
     setLoading(true);
@@ -436,12 +451,30 @@ const HospitalAdminDashboard: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F4F6F9' }}>
-      <Sidebar tab={tab} setTab={setTab} facilityName={facility.name} />
-      <Box sx={{ flex: 1, p: 4, overflowY: 'auto' }}>
-        {tab === 0 && <ProfileTab facility={facility} reload={loadFacility} />}
-        {tab === 1 && <BedsTab hospitalId={facility.id} />}
-        {tab === 2 && <InventoryTab hospitalId={facility.id} />}
-        {tab === 3 && <DoctorsTab facility={facility} />}
+      {/* Sidebar : desktop fixe, mobile drawer */}
+      {!isMobile && <Sidebar tab={tab} setTab={setTab} facilityName={facility.name} />}
+
+      {isMobile && (
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          <Sidebar tab={tab} setTab={setTab} facilityName={facility.name} onItemClick={() => setDrawerOpen(false)} />
+        </Drawer>
+      )}
+
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        {/* Topbar mobile */}
+        {isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, bgcolor: '#0F2D52' }}>
+            <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#fff' }}><MenuIcon /></IconButton>
+            <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: 14 }} noWrap>{facility.name}</Typography>
+          </Box>
+        )}
+
+        <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+          {tab === 0 && <ProfileTab facility={facility} reload={loadFacility} />}
+          {tab === 1 && <BedsTab hospitalId={facility.id} />}
+          {tab === 2 && <InventoryTab hospitalId={facility.id} />}
+          {tab === 3 && <DoctorsTab facility={facility} />}
+        </Box>
       </Box>
       <ChatbotWidget />
     </Box>
