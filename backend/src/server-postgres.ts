@@ -29,6 +29,7 @@ import subscriptionRoutes from './routes/subscription.routes';
 import dependentRoutes from './routes/dependent.routes';
 import chatbotRoutes from './routes/chatbot.routes';
 import facilityRoutes from './routes/facility-registration.routes';
+import doctorAffiliationsRoutes from './routes/doctor-affiliations.routes';
 
 // Charger les variables d'environnement
 dotenv.config();
@@ -91,7 +92,8 @@ app.use('/api/messages',      messageRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/dependents',    dependentRoutes);
 app.use('/api/chatbot',       chatbotRoutes);
-app.use('/api/facilities',    facilityRoutes);
+app.use('/api/facilities',          facilityRoutes);
+app.use('/api/doctor-affiliations', doctorAffiliationsRoutes);
 
 // Route 404
 app.use((_req: Request, res: Response) => {

@@ -165,7 +165,13 @@ const AppointmentsTab: React.FC = () => {
 
   useEffect(() => {
     api.get('/appointments/patient').then(r => setAppointments(r.data.data)).finally(() => setLoading(false));
-    api.get('/appointments/doctors/approved').then(r => setDoctors(r.data.data)).catch(() => {});
+    // On utilise la nouvelle route qui inclut les affiliations hôpitaux
+    api.get('/doctor-affiliations/available-doctors')
+      .then(r => setDoctors(r.data.data))
+      .catch(() => {
+        // Fallback sur l'ancienne route en cas d'erreur
+        api.get('/appointments/doctors/approved').then(r => setDoctors(r.data.data)).catch(() => {});
+      });
   }, []);
 
   const book = async () => {
@@ -329,11 +335,23 @@ const AppointmentsTab: React.FC = () => {
               <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.75, color: '#374151' }}>Médecin *</Typography>
               <TextField fullWidth size="small" select value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))}>
                 <MenuItem value=""><em>Choisir un médecin…</em></MenuItem>
-                {doctors.map((d: any) => (
-                  <MenuItem key={d.userId} value={d.userId}>
-                    Dr. {d.firstName} {d.lastName} — {d.doctorInfo?.specialization}
-                  </MenuItem>
-                ))}
+                {doctors.map((d: any) => {
+                  const hospitalNames = (d.hospitals ?? []).map((h: any) => h.name).join(', ');
+                  return (
+                    <MenuItem key={d.userId} value={d.userId}>
+                      <Box>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                          Dr. {d.firstName} {d.lastName} — {d.doctorInfo?.specialization}
+                        </Typography>
+                        {hospitalNames && (
+                          <Typography sx={{ fontSize: 11, color: '#64748B' }}>
+                            🏥 {hospitalNames}
+                          </Typography>
+                        )}
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
               </TextField>
             </Grid>
             <Grid item xs={6}>

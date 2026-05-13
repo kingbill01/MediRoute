@@ -680,6 +680,102 @@ const FL: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 // ── Profil médecin éditable ───────────────────────────────────────────────────
+// ── Composant : sélection des affiliations hôpitaux du médecin ───────────────
+const DoctorAffiliations: React.FC = () => {
+  const [approvedHospitals, setApprovedHospitals] = useState<any[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/doctor-affiliations/approved-hospitals'),
+      api.get('/doctor-affiliations/my-affiliations'),
+    ]).then(([allRes, myRes]) => {
+      setApprovedHospitals(allRes.data.data || []);
+      setSelectedIds((myRes.data.data || []).map((a: any) => a.hospital.id));
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (id: string) =>
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put('/doctor-affiliations/my-affiliations', { hospitalIds: selectedIds });
+      toast.success(`${selectedIds.length} établissement(s) enregistré(s)`);
+    } catch { toast.error('Erreur lors de la sauvegarde'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.75, color: '#374151' }}>
+        Établissements où vous exercez
+      </Typography>
+      <Typography sx={{ fontSize: 11.5, color: '#64748B', mb: 1.5 }}>
+        Vous pouvez intervenir dans un ou plusieurs établissements. Les patients verront ces affiliations
+        pour prendre rendez-vous avec vous.
+      </Typography>
+
+      {loading ? <CircularProgress size={20} sx={{ color: '#00A896' }} /> :
+       approvedHospitals.length === 0 ? (
+        <Box sx={{ p: 2, bgcolor: '#fff3e0', borderRadius: 2 }}>
+          <Typography sx={{ fontSize: 12, color: '#92400E' }}>
+            Aucun établissement disponible. Contactez l'administrateur MediRoute.
+          </Typography>
+        </Box>
+      ) : (
+        <>
+          <Box sx={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 2, p: 1, mb: 1.5 }}>
+            {approvedHospitals.map(h => {
+              const checked = selectedIds.includes(h.id);
+              return (
+                <Box key={h.id}
+                  onClick={() => toggle(h.id)}
+                  sx={{
+                    p: 1.2, borderRadius: 1.5, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 1.2,
+                    bgcolor: checked ? '#e0f5f1' : 'transparent',
+                    border: checked ? '1px solid #00A896' : '1px solid transparent',
+                    mb: 0.5,
+                    '&:hover': { bgcolor: checked ? '#e0f5f1' : '#f5f7fa' },
+                  }}>
+                  <Box sx={{
+                    width: 18, height: 18, borderRadius: '4px', flexShrink: 0,
+                    border: '2px solid', borderColor: checked ? '#00A896' : '#cbd5e1',
+                    bgcolor: checked ? '#00A896' : '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {checked && <Typography sx={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</Typography>}
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{h.name}</Typography>
+                    <Typography sx={{ fontSize: 11.5, color: '#64748B' }}>
+                      {h.type?.replace(/_/g, ' ')} · {h.city}, {h.region}
+                    </Typography>
+                  </Box>
+                  {checked && <Chip label="Affilié" size="small" sx={{ bgcolor: '#00A896', color: '#fff', fontWeight: 600 }} />}
+                </Box>
+              );
+            })}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography sx={{ fontSize: 12, color: '#64748B' }}>
+              {selectedIds.length} établissement(s) sélectionné(s)
+            </Typography>
+            <Button variant="contained" size="small" onClick={save} disabled={saving}
+              sx={{ bgcolor: '#00A896', '&:hover': { bgcolor: '#008f80' } }}>
+              {saving ? <CircularProgress size={16} color="inherit" /> : 'Mettre à jour les affiliations'}
+            </Button>
+          </Box>
+        </>
+      )}
+    </Box>
+  );
+};
+
 const ProfileTab: React.FC = () => {
   const user = authService.getCurrentUser();
   const di = (user as any)?.doctorInfo ?? {};
@@ -694,10 +790,9 @@ const ProfileTab: React.FC = () => {
   });
 
   const [doctorInfo, setDoctorInfo] = useState({
-    bio:                 di.bio                 ?? '',
-    hospitalAffiliation: di.hospitalAffiliation ?? '',
-    consultationFee:     di.consultationFee     ?? '',
-    yearsOfExperience:   di.yearsOfExperience   ?? '',
+    bio:               di.bio               ?? '',
+    consultationFee:   di.consultationFee   ?? '',
+    yearsOfExperience: di.yearsOfExperience ?? '',
   });
 
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
@@ -827,11 +922,6 @@ const ProfileTab: React.FC = () => {
                 onChange={e => setDoctorInfo(d => ({ ...d, bio: e.target.value }))}
                 placeholder="Décrivez votre parcours et votre approche thérapeutique…" />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <FL>Établissement hospitalier</FL>
-              <TextField fullWidth size="small" value={doctorInfo.hospitalAffiliation}
-                onChange={e => setDoctorInfo(d => ({ ...d, hospitalAffiliation: e.target.value }))} />
-            </Grid>
             <Grid item xs={6} sm={3}>
               <FL>Tarif consultation (FCFA)</FL>
               <TextField fullWidth size="small" type="number" value={doctorInfo.consultationFee}
@@ -841,6 +931,9 @@ const ProfileTab: React.FC = () => {
               <FL>Années d'expérience</FL>
               <TextField fullWidth size="small" type="number" value={doctorInfo.yearsOfExperience}
                 onChange={e => setDoctorInfo(d => ({ ...d, yearsOfExperience: e.target.value }))} />
+            </Grid>
+            <Grid item xs={12}>
+              <DoctorAffiliations />
             </Grid>
           </Grid>
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>

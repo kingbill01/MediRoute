@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import api from '../../services/api';
 import { ROUTES } from '../../config/constants';
 
 const REGIONS = ['Dakar','Thiès','Saint-Louis','Ziguinchor','Kaolack','Diourbel',
@@ -37,9 +38,21 @@ const Register: React.FC = () => {
     firstName: '', lastName: '', phone: '', city: 'Dakar', region: 'Dakar',
     bloodGroup: '', allergies: '', chronicConditions: '',
     emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelationship: '',
-    specialization: '', licenseNumber: '', hospitalAffiliation: '',
+    specialization: '', licenseNumber: '',
     consultationFee: '', yearsOfExperience: '', bio: '',
   });
+
+  // Hôpitaux disponibles pour la sélection (chargés depuis l'API publique)
+  const [approvedHospitals, setApprovedHospitals] = useState<any[]>([]);
+  const [selectedHospitalIds, setSelectedHospitalIds] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (role === 'DOCTOR' && approvedHospitals.length === 0) {
+      api.get('/doctor-affiliations/approved-hospitals')
+        .then(r => setApprovedHospitals(r.data.data || []))
+        .catch(() => {});
+    }
+  }, [role, approvedHospitals.length]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -95,7 +108,7 @@ const Register: React.FC = () => {
       } else {
         payload.doctorInfo = {
           specialization: form.specialization, licenseNumber: form.licenseNumber,
-          hospitalAffiliation: form.hospitalAffiliation || undefined,
+          hospitalIds: selectedHospitalIds,
           consultationFee: form.consultationFee ? parseFloat(form.consultationFee) : undefined,
           yearsOfExperience: form.yearsOfExperience ? parseInt(form.yearsOfExperience) : undefined,
           bio: form.bio || undefined,
@@ -304,8 +317,55 @@ const Register: React.FC = () => {
                 <TextField fullWidth size="small" value={form.licenseNumber} onChange={set('licenseNumber')} placeholder="SN-2024-XXXXX" />
               </Grid>
               <Grid item xs={12}>
-                <Label>Hôpital d'affiliation</Label>
-                <TextField fullWidth size="small" value={form.hospitalAffiliation} onChange={set('hospitalAffiliation')} />
+                <Label>Établissements où vous travaillez</Label>
+                <Typography sx={{ fontSize: 11, color: '#64748B', mb: 1 }}>
+                  Sélectionnez un ou plusieurs établissements. Vous pourrez en modifier la liste depuis votre profil.
+                </Typography>
+                {approvedHospitals.length === 0 ? (
+                  <Alert severity="info" sx={{ fontSize: 12 }}>
+                    Aucun établissement disponible pour le moment. Vous pourrez en ajouter depuis votre profil.
+                  </Alert>
+                ) : (
+                  <Box sx={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 2, p: 1 }}>
+                    {approvedHospitals.map(h => {
+                      const checked = selectedHospitalIds.includes(h.id);
+                      return (
+                        <Box key={h.id}
+                          onClick={() => setSelectedHospitalIds(prev =>
+                            checked ? prev.filter(id => id !== h.id) : [...prev, h.id]
+                          )}
+                          sx={{
+                            p: 1, borderRadius: 1.5, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 1,
+                            bgcolor: checked ? '#e0f5f1' : 'transparent',
+                            border: checked ? '1px solid #00A896' : '1px solid transparent',
+                            mb: 0.5,
+                            '&:hover': { bgcolor: checked ? '#e0f5f1' : '#f5f7fa' },
+                          }}>
+                          <Box sx={{
+                            width: 18, height: 18, borderRadius: '4px', flexShrink: 0,
+                            border: '2px solid', borderColor: checked ? '#00A896' : '#cbd5e1',
+                            bgcolor: checked ? '#00A896' : '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {checked && <Typography sx={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</Typography>}
+                          </Box>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{h.name}</Typography>
+                            <Typography sx={{ fontSize: 11, color: '#64748B' }}>
+                              {h.type?.replace(/_/g, ' ')} · {h.city}, {h.region}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+                {selectedHospitalIds.length > 0 && (
+                  <Typography sx={{ fontSize: 11, color: '#00A896', mt: 0.5, fontWeight: 600 }}>
+                    {selectedHospitalIds.length} établissement(s) sélectionné(s)
+                  </Typography>
+                )}
               </Grid>
               <Grid item xs={6}>
                 <Label>Années d'expérience</Label>

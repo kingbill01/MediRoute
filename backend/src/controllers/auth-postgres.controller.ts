@@ -102,6 +102,22 @@ export const register = asyncHandler(async (req: AuthRequest, res: Response) => 
     },
   });
 
+  // Créer les affiliations hôpitaux pour les médecins (relation many-to-many)
+  if (role === 'DOCTOR' && doctorInfo?.hospitalIds?.length && user.doctorInfo) {
+    const validHospitals = await prisma.hospital.findMany({
+      where: { id: { in: doctorInfo.hospitalIds }, registrationStatus: 'APPROVED' },
+      select: { id: true },
+    });
+    // Création individuelle pour gérer les doublons silencieusement
+    for (const h of validHospitals) {
+      try {
+        await prisma.hospitalDoctor.create({
+          data: { doctorId: user.doctorInfo.id, hospitalId: h.id, role: 'AFFILIATED' },
+        });
+      } catch { /* contrainte unique violée — déjà affilié */ }
+    }
+  }
+
   // Générer le token
   const token = generateToken(user.id, user.email, user.role);
 
@@ -262,6 +278,7 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
             ...(doctorInfo.consultationFee     !== undefined && { consultationFee:     doctorInfo.consultationFee     }),
             ...(doctorInfo.hospitalAffiliation !== undefined && { hospitalAffiliation: doctorInfo.hospitalAffiliation }),
             ...(doctorInfo.yearsOfExperience   !== undefined && { yearsOfExperience:   doctorInfo.yearsOfExperience   }),
+            ...(doctorInfo.specialization      !== undefined && { specialization:      doctorInfo.specialization      }),
           },
         },
       }),
