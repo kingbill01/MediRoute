@@ -179,6 +179,7 @@ export const login = asyncHandler(async (req: AuthRequest, res: Response) => {
           gender: user.gender,
           city: user.city,
           region: user.region,
+          profileImage: user.profileImage,
         },
         ...(user.doctorInfo && { 
           doctorInfo: {
@@ -245,11 +246,13 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     where: { id: userId },
     data: {
       ...(profile && {
-        ...(profile.firstName !== undefined && { firstName: profile.firstName }),
-        ...(profile.lastName  !== undefined && { lastName:  profile.lastName  }),
-        ...(profile.phone     !== undefined && { phone:     profile.phone     }),
-        ...(profile.city      !== undefined && { city:      profile.city      }),
-        ...(profile.region    !== undefined && { region:    profile.region    }),
+        ...(profile.firstName    !== undefined && { firstName:    profile.firstName    }),
+        ...(profile.lastName     !== undefined && { lastName:     profile.lastName     }),
+        ...(profile.phone        !== undefined && { phone:        profile.phone        }),
+        ...(profile.city         !== undefined && { city:         profile.city         }),
+        ...(profile.region       !== undefined && { region:       profile.region       }),
+        ...(profile.gender       !== undefined && { gender:       profile.gender       }),
+        ...(profile.profileImage !== undefined && { profileImage: profile.profileImage }),
         ...(profile.dateOfBirth && { dateOfBirth: new Date(profile.dateOfBirth) }),
       }),
       ...(userRole === 'DOCTOR' && doctorInfo && {

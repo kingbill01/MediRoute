@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import SubscriptionTab, { SubscriptionBanner } from '../Subscription/SubscriptionTab';
 import ChatbotWidget from '../../components/ChatbotWidget';
+import ProfilePhotoUpload from '../../components/ProfilePhotoUpload';
 import subscriptionService from '../../services/subscriptionService';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -73,7 +74,8 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, 
 
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar sx={{ width: 34, height: 34, bgcolor: '#00A896', fontSize: 13, fontWeight: 700 }}>
+          <Avatar src={(user?.profile as any)?.profileImage ?? undefined}
+            sx={{ width: 34, height: 34, bgcolor: '#00A896', fontSize: 13, fontWeight: 700 }}>
             {user?.profile?.firstName?.[0]}{user?.profile?.lastName?.[0]}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -682,11 +684,12 @@ const ProfileTab: React.FC = () => {
   const di = (user as any)?.doctorInfo ?? {};
 
   const [prof, setProf] = useState({
-    firstName: user?.profile?.firstName ?? '',
-    lastName:  user?.profile?.lastName  ?? '',
-    phone:     user?.profile?.phone     ?? '',
-    city:      user?.profile?.city      ?? '',
-    region:    user?.profile?.region    ?? '',
+    firstName:    user?.profile?.firstName    ?? '',
+    lastName:     user?.profile?.lastName     ?? '',
+    phone:        user?.profile?.phone        ?? '',
+    city:         user?.profile?.city         ?? '',
+    region:       user?.profile?.region       ?? '',
+    profileImage: (user?.profile as any)?.profileImage ?? null,
   });
 
   const [doctorInfo, setDoctorInfo] = useState({
@@ -746,6 +749,13 @@ const ProfileTab: React.FC = () => {
       <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
         <SectionHeader icon={<Person />} title="Informations personnelles" />
         <Box sx={{ p: 3 }}>
+          <Box sx={{ mb: 3, pb: 3, borderBottom: '1px solid #f0f0f0' }}>
+            <ProfilePhotoUpload
+              value={prof.profileImage}
+              onChange={(img) => setProf(p => ({ ...p, profileImage: img }))}
+              initials={`${prof.firstName?.[0] ?? ''}${prof.lastName?.[0] ?? ''}`}
+            />
+          </Box>
           <Grid container spacing={2.5}>
             <Grid item xs={12} sm={6}>
               <FL>Prénom</FL>
