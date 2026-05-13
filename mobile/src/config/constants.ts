@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://10.0.2.2:5000/api'; // Android emulator → localhost
+export const API_BASE_URL = 'https://mediroute-api.fly.dev/api';
 // Pour iOS simulateur ou device physique, utiliser l'IP locale ex: http://192.168.1.x:5000/api
 
 export const ENDPOINTS = {
