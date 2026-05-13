@@ -31,7 +31,11 @@ model User {
   country   String    @default("Sénégal")
   
   profileImage String?
-  
+
+  // Pour HOSPITAL_ADMIN : lien vers l'établissement géré
+  hospitalId   String?
+  managedHospital Hospital? @relation("HospitalAdmin", fields: [hospitalId], references: [id])
+
   // Relations
   doctorInfo      DoctorInfo?
   patientInfo     PatientInfo?
@@ -214,8 +218,12 @@ model Attachment {
 model Hospital {
   id          String       @id @default(uuid())
   name        String
-  type        String       // PUBLIC, PRIVATE, CLINIC, HEALTH_CENTER
+  type        String       // HOPITAL_PUBLIC, HOPITAL_PRIVE, CLINIQUE, CENTRE_DE_SANTE, DISTRICT_SANITAIRE, POSTE_DE_SANTE
   region      String
+
+  // Identifiants administratifs
+  registrationNumber String?  @unique  // Numéro d'enregistrement officiel
+  taxNumber          String?           // NINEA / numéro fiscal
   
   // Contact
   phone          String
@@ -253,12 +261,16 @@ model Hospital {
   verified     Boolean @default(false)
   rating       Float?
   
+  // Statut d'enregistrement
+  registrationStatus String  @default("APPROVED") // PENDING, APPROVED, REJECTED, SUSPENDED
+
   // Relations
   appointments      Appointment[]
   emergencyRequests EmergencyRequest[]
   doctorAffiliations HospitalDoctor[]
   beds              HospitalBed[]
   inventory         InventoryItem[]
+  admins            User[]  @relation("HospitalAdmin")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

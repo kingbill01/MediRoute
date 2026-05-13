@@ -192,6 +192,27 @@ const Register: React.FC = () => {
                   Votre compte sera validé par un administrateur avant activation.
                 </Alert>
               )}
+
+              {/* Lien vers inscription établissement */}
+              <Box
+                onClick={() => navigate('/register/facility')}
+                sx={{
+                  mt: 3, p: 2, borderRadius: 2, border: '1px dashed #00A896',
+                  bgcolor: '#f0fbf9', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', gap: 1.5,
+                  '&:hover': { bgcolor: '#e8f5e9', borderStyle: 'solid' },
+                }}>
+                <Box sx={{ fontSize: 28 }}>🏥</Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0F2D52' }}>
+                    Inscrire un établissement de santé
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: '#64748B' }}>
+                    Hôpital · Clinique · Centre de santé · District sanitaire
+                  </Typography>
+                </Box>
+                <Typography sx={{ color: '#00A896', fontWeight: 700, fontSize: 18 }}>›</Typography>
+              </Box>
             </Box>
           )}
 

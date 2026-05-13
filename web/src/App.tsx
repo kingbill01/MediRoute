@@ -7,10 +7,12 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
+import FacilityRegister from './pages/Register/FacilityRegister';
 import EmergencyForm from './pages/Emergency/EmergencyForm';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
 import DoctorDashboard from './pages/Dashboard/DoctorDashboard';
 import PatientDashboard from './pages/Dashboard/PatientDashboard';
+import HospitalAdminDashboard from './pages/Dashboard/HospitalAdminDashboard';
 import authService from './services/authService';
 import { ROUTES } from './config/constants';
 
@@ -121,6 +123,7 @@ const RoleBasedDashboard: React.FC = () => {
   const role = (user as any)?.role?.toUpperCase();
   if (role === 'ADMIN') return <AdminDashboard />;
   if (role === 'DOCTOR') return <DoctorDashboard />;
+  if (role === 'HOSPITAL_ADMIN') return <HospitalAdminDashboard />;
   return <PatientDashboard />;
 };
 
@@ -131,6 +134,7 @@ const App: React.FC = () => (
       <Routes>
         <Route path={ROUTES.LOGIN} element={<Login />} />
         <Route path={ROUTES.REGISTER} element={<Register />} />
+        <Route path="/register/facility" element={<FacilityRegister />} />
         <Route path={ROUTES.EMERGENCY} element={<EmergencyForm />} />
         <Route path={ROUTES.DASHBOARD} element={<PrivateRoute><RoleBasedDashboard /></PrivateRoute>} />
         <Route path="/" element={<Navigate to={ROUTES.LOGIN} />} />
