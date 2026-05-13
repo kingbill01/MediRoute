@@ -193,26 +193,13 @@ const Register: React.FC = () => {
                 </Alert>
               )}
 
-              {/* Lien vers inscription établissement */}
-              <Box
-                onClick={() => navigate('/register/facility')}
-                sx={{
-                  mt: 3, p: 2, borderRadius: 2, border: '1px dashed #00A896',
-                  bgcolor: '#f0fbf9', cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', gap: 1.5,
-                  '&:hover': { bgcolor: '#e8f5e9', borderStyle: 'solid' },
-                }}>
-                <Box sx={{ fontSize: 28 }}>🏥</Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0F2D52' }}>
-                    Inscrire un établissement de santé
-                  </Typography>
-                  <Typography sx={{ fontSize: 11.5, color: '#64748B' }}>
-                    Hôpital · Clinique · Centre de santé · District sanitaire
-                  </Typography>
-                </Box>
-                <Typography sx={{ color: '#00A896', fontWeight: 700, fontSize: 18 }}>›</Typography>
-              </Box>
+              {/* Note : l'inscription d'un établissement se fait uniquement via l'administrateur MediRoute */}
+              <Alert severity="info" sx={{ mt: 3, borderRadius: 2, fontSize: 12 }}>
+                <Typography variant="caption">
+                  <strong>Vous représentez un établissement de santé ?</strong><br />
+                  Contactez l'administrateur MediRoute pour l'enregistrement de votre hôpital, clinique ou district sanitaire.
+                </Typography>
+              </Alert>
             </Box>
           )}
 

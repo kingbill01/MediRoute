@@ -81,6 +81,33 @@ class FacilityService {
     const res = await api.put(`/facilities/${id}/status`, { status, note });
     return res.data.data;
   }
+
+  // ── Gestionnaires d'établissement ──────────────────────────────────────────
+  async listManagers(facilityId: string): Promise<any[]> {
+    const res = await api.get(`/facilities/${facilityId}/managers`);
+    return res.data.data;
+  }
+
+  async assignManager(facilityId: string, payload: {
+    email: string;
+    mode: 'existing' | 'new';
+    password?: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  }): Promise<any> {
+    const res = await api.post(`/facilities/${facilityId}/managers`, payload);
+    return res.data.data;
+  }
+
+  async removeManager(facilityId: string, userId: string): Promise<void> {
+    await api.delete(`/facilities/${facilityId}/managers/${userId}`);
+  }
+
+  async searchUsers(email: string): Promise<any[]> {
+    const res = await api.get(`/facilities/search-users`, { params: { email } });
+    return res.data.data;
+  }
 }
 
 const facilityService = new FacilityService();

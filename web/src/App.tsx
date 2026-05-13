@@ -7,7 +7,6 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
-import FacilityRegister from './pages/Register/FacilityRegister';
 import EmergencyForm from './pages/Emergency/EmergencyForm';
 import MobileAppDownload from './pages/MobileApp/MobileAppDownload';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
@@ -135,7 +134,6 @@ const App: React.FC = () => (
       <Routes>
         <Route path={ROUTES.LOGIN} element={<Login />} />
         <Route path={ROUTES.REGISTER} element={<Register />} />
-        <Route path="/register/facility" element={<FacilityRegister />} />
         <Route path="/mobile-app" element={<MobileAppDownload />} />
         <Route path={ROUTES.EMERGENCY} element={<EmergencyForm />} />
         <Route path={ROUTES.DASHBOARD} element={<PrivateRoute><RoleBasedDashboard /></PrivateRoute>} />

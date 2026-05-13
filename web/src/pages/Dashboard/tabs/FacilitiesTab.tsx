@@ -10,7 +10,9 @@ import {
   Add, Edit, Delete, Search, LocalHospital,
   CheckCircle, Pending, Cancel as CancelIcon, Block,
   Phone, LocationOn, Email, Visibility, Business,
+  ManageAccounts, PersonAdd, PersonRemove,
 } from '@mui/icons-material';
+import { Avatar } from '@mui/material';
 import api from '../../../services/api';
 import facilityService from '../../../services/facilityService';
 import { toast } from 'react-toastify';
@@ -61,6 +63,7 @@ const FacilitiesTab: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [managersOpen, setManagersOpen] = useState(false);
 
   const [selected, setSelected] = useState<any>(null);
   const [form, setForm] = useState<any>(BLANK_FORM);
@@ -283,6 +286,11 @@ const FacilitiesTab: React.FC = () => {
                       <Tooltip title="Modifier">
                         <IconButton size="small" onClick={() => openEdit(f)} sx={{ color: '#0F2D52' }}><Edit fontSize="small" /></IconButton>
                       </Tooltip>
+                      <Tooltip title="Gestionnaires">
+                        <IconButton size="small" onClick={() => { setSelected(f); setManagersOpen(true); }} sx={{ color: '#00A896' }}>
+                          <ManageAccounts fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       {f.registrationStatus === 'PENDING' && (
                         <Tooltip title="Approuver">
                           <IconButton size="small" onClick={() => updateStatus(f, 'APPROVED')} sx={{ color: '#2e7d32' }}><CheckCircle fontSize="small" /></IconButton>
@@ -329,6 +337,15 @@ const FacilitiesTab: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── Dialog Gestionnaires ─────────────────────────────────────────── */}
+      {selected && (
+        <ManagersDialog
+          open={managersOpen}
+          facility={selected}
+          onClose={() => setManagersOpen(false)}
+        />
+      )}
 
       {/* ── Dialog Détails ────────────────────────────────────────────────── */}
       <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
@@ -495,6 +512,218 @@ const FacilityFormDialog: React.FC<{
           sx={{ bgcolor: '#00A896', '&:hover': { bgcolor: '#008f80' } }}>
           {saving ? <CircularProgress size={18} color="inherit" /> : (isCreate ? 'Créer' : 'Enregistrer')}
         </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// ── Dialog Gestionnaires (HOSPITAL_ADMIN d'un établissement) ───────────────
+const ManagersDialog: React.FC<{
+  open: boolean; facility: any; onClose: () => void;
+}> = ({ open, facility, onClose }) => {
+  const [managers, setManagers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<'existing' | 'new'>('existing');
+  const [searchEmail, setSearchEmail] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newForm, setNewForm] = useState({ email: '', password: '', firstName: '', lastName: '', phone: '' });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!facility?.id) return;
+    setLoading(true);
+    try {
+      const data = await facilityService.listManagers(facility.id);
+      setManagers(data);
+    } catch { toast.error('Impossible de charger les gestionnaires'); }
+    finally { setLoading(false); }
+  }, [facility?.id]);
+
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  // Recherche utilisateur existant (debounced)
+  useEffect(() => {
+    if (mode !== 'existing' || searchEmail.length < 3) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const data = await facilityService.searchUsers(searchEmail);
+        setSearchResults(data);
+      } catch { /* silently */ }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchEmail, mode]);
+
+  const assignExisting = async () => {
+    if (!selectedUser) return toast.error('Sélectionnez un utilisateur');
+    setSaving(true);
+    try {
+      await facilityService.assignManager(facility.id, {
+        email: selectedUser.email, mode: 'existing',
+      });
+      toast.success('Gestionnaire désigné');
+      setSelectedUser(null); setSearchEmail(''); setSearchResults([]);
+      load();
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? 'Erreur'); }
+    finally { setSaving(false); }
+  };
+
+  const createNew = async () => {
+    if (!newForm.email || !newForm.password || !newForm.firstName || !newForm.lastName || !newForm.phone) {
+      return toast.error('Tous les champs sont obligatoires');
+    }
+    if (newForm.password.length < 8) return toast.error('Mot de passe min 8 caractères');
+    setSaving(true);
+    try {
+      await facilityService.assignManager(facility.id, { ...newForm, mode: 'new' });
+      toast.success('Compte gestionnaire créé et désigné');
+      setNewForm({ email: '', password: '', firstName: '', lastName: '', phone: '' });
+      load();
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? 'Erreur'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (userId: string) => {
+    if (!window.confirm('Retirer ce gestionnaire ? Son compte sera détaché de l\'établissement.')) return;
+    try {
+      await facilityService.removeManager(facility.id, userId);
+      toast.success('Gestionnaire retiré');
+      load();
+    } catch { toast.error('Erreur'); }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <ManageAccounts sx={{ color: '#00A896' }} />
+        <Box sx={{ flex: 1 }}>
+          <Typography fontWeight={700}>Gestionnaires</Typography>
+          <Typography variant="caption" color="text.secondary">{facility?.name}</Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        {/* Liste actuelle */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" fontWeight={700} color="#0F2D52" mb={1.5}>
+            Gestionnaires actuels ({managers.length})
+          </Typography>
+          {loading ? <CircularProgress size={20} sx={{ color: '#00A896' }} /> :
+           managers.length === 0 ? (
+            <Alert severity="info" sx={{ fontSize: 13 }}>
+              Aucun gestionnaire désigné. Ajoutez-en un ci-dessous.
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {managers.map(m => (
+                <Paper key={m.id} variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: 2 }}>
+                  <Avatar sx={{ bgcolor: '#00A896', width: 36, height: 36 }}>
+                    {m.firstName?.[0]}{m.lastName?.[0]}
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={600}>{m.firstName} {m.lastName}</Typography>
+                    <Typography variant="caption" color="text.secondary">{m.email} · {m.phone}</Typography>
+                  </Box>
+                  <Chip label={m.status} size="small" color={m.status === 'ACTIVE' ? 'success' : 'default'} />
+                  <Tooltip title="Retirer">
+                    <IconButton size="small" onClick={() => remove(m.id)} sx={{ color: '#c62828' }}>
+                      <PersonRemove fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Paper>
+              ))}
+            </Box>
+          )}
+        </Box>
+
+        <Divider sx={{ my: 2 }}><Chip label="Ajouter un gestionnaire" size="small" /></Divider>
+
+        {/* Toggle mode */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Button variant={mode === 'existing' ? 'contained' : 'outlined'}
+            onClick={() => setMode('existing')} size="small"
+            sx={{ bgcolor: mode === 'existing' ? '#00A896' : undefined, '&:hover': { bgcolor: mode === 'existing' ? '#008f80' : undefined } }}>
+            <PersonAdd sx={{ fontSize: 16, mr: 0.5 }} />
+            Utilisateur existant
+          </Button>
+          <Button variant={mode === 'new' ? 'contained' : 'outlined'}
+            onClick={() => setMode('new')} size="small"
+            sx={{ bgcolor: mode === 'new' ? '#00A896' : undefined, '&:hover': { bgcolor: mode === 'new' ? '#008f80' : undefined } }}>
+            <Add sx={{ fontSize: 16, mr: 0.5 }} />
+            Créer un compte
+          </Button>
+        </Box>
+
+        {mode === 'existing' ? (
+          <Box>
+            <TextField fullWidth size="small" label="Rechercher par email (min 3 caractères)"
+              value={searchEmail} onChange={e => setSearchEmail(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }} />
+            {searchResults.length > 0 && (
+              <Paper variant="outlined" sx={{ mt: 1, maxHeight: 220, overflow: 'auto' }}>
+                {searchResults.map(u => (
+                  <Box key={u.id}
+                    onClick={() => setSelectedUser(u)}
+                    sx={{
+                      p: 1.2, display: 'flex', alignItems: 'center', gap: 1.2, cursor: 'pointer',
+                      borderBottom: '1px solid #f0f0f0',
+                      bgcolor: selectedUser?.id === u.id ? '#e8f5e9' : 'transparent',
+                      '&:hover': { bgcolor: '#f5f5f5' },
+                    }}>
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#0F2D52', fontSize: 12 }}>
+                      {u.firstName?.[0]}{u.lastName?.[0]}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2">{u.firstName} {u.lastName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{u.email}</Typography>
+                    </Box>
+                    <Chip label={u.role} size="small" />
+                    {u.hospitalId && u.hospitalId !== facility.id && (
+                      <Chip label="Déjà assigné" size="small" color="warning" />
+                    )}
+                  </Box>
+                ))}
+              </Paper>
+            )}
+            <Button variant="contained" fullWidth onClick={assignExisting} disabled={!selectedUser || saving}
+              sx={{ mt: 2, bgcolor: '#00A896', '&:hover': { bgcolor: '#008f80' } }}>
+              {saving ? <CircularProgress size={18} color="inherit" /> :
+                selectedUser ? `Désigner ${selectedUser.firstName} ${selectedUser.lastName}` : 'Sélectionnez un utilisateur'}
+            </Button>
+          </Box>
+        ) : (
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Prénom *" value={newForm.firstName}
+                onChange={e => setNewForm({ ...newForm, firstName: e.target.value })} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Nom *" value={newForm.lastName}
+                onChange={e => setNewForm({ ...newForm, lastName: e.target.value })} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Email *" type="email" value={newForm.email}
+                onChange={e => setNewForm({ ...newForm, email: e.target.value })} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Téléphone *" value={newForm.phone}
+                onChange={e => setNewForm({ ...newForm, phone: e.target.value })} placeholder="+221 77 000 00 00" />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth size="small" label="Mot de passe initial * (8 caractères min)" type="password"
+                value={newForm.password} onChange={e => setNewForm({ ...newForm, password: e.target.value })}
+                helperText="Le gestionnaire pourra le changer à sa première connexion" />
+            </Grid>
+            <Grid item xs={12}>
+              <Button variant="contained" fullWidth onClick={createNew} disabled={saving}
+                sx={{ bgcolor: '#00A896', '&:hover': { bgcolor: '#008f80' } }}>
+                {saving ? <CircularProgress size={18} color="inherit" /> : 'Créer & désigner'}
+              </Button>
+            </Grid>
+          </Grid>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Fermer</Button>
       </DialogActions>
     </Dialog>
   );

@@ -1,6 +1,5 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database-postgres';
 import { AuthRequest } from '../middleware/auth';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
@@ -15,119 +14,6 @@ const FACILITY_TYPES = [
   'POSTE_DE_SANTE',
 ];
 
-const generateToken = (userId: string, email: string, role: string): string => {
-  const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign({ userId, email, role }, secret, { expiresIn: '7d' });
-};
-
-// ── POST /api/facilities/register ─────────────────────────────────────────────
-// Inscription publique : crée à la fois l'établissement et le compte admin
-export const registerFacility = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { facility, admin } = req.body;
-
-  // Validation des champs obligatoires
-  if (!facility?.name || !facility?.type || !facility?.region || !facility?.city ||
-      !facility?.address || !facility?.phone || !facility?.emergencyPhone) {
-    throw new AppError('Informations établissement incomplètes (nom, type, région, ville, adresse, téléphones)', 400);
-  }
-  if (!admin?.email || !admin?.password || !admin?.firstName || !admin?.lastName || !admin?.phone) {
-    throw new AppError('Informations administrateur incomplètes', 400);
-  }
-  if (!FACILITY_TYPES.includes(facility.type)) {
-    throw new AppError(`Type invalide. Valeurs autorisées : ${FACILITY_TYPES.join(', ')}`, 400);
-  }
-  if (admin.password.length < 8) {
-    throw new AppError('Le mot de passe doit faire au moins 8 caractères', 400);
-  }
-
-  // Vérifier que l'email admin n'est pas déjà utilisé
-  const existing = await prisma.user.findUnique({ where: { email: admin.email } });
-  if (existing) throw new AppError('Cet email est déjà utilisé', 400);
-
-  // Vérifier que le numéro d'enregistrement n'est pas déjà pris
-  if (facility.registrationNumber) {
-    const existingFacility = await prisma.hospital.findUnique({
-      where: { registrationNumber: facility.registrationNumber },
-    });
-    if (existingFacility) throw new AppError('Ce numéro d\'enregistrement est déjà utilisé', 400);
-  }
-
-  const hashedPassword = await bcrypt.hash(admin.password, 10);
-
-  // Création atomique : Hospital + User (HOSPITAL_ADMIN) lié à l'établissement
-  const result = await prisma.$transaction(async (tx) => {
-    const hospital = await tx.hospital.create({
-      data: {
-        name:               facility.name,
-        type:               facility.type,
-        region:             facility.region,
-        city:               facility.city,
-        address:            facility.address,
-        latitude:           facility.latitude  ?? 0,
-        longitude:          facility.longitude ?? 0,
-        phone:              facility.phone,
-        emergencyPhone:     facility.emergencyPhone,
-        email:              facility.email,
-        website:            facility.website,
-        description:        facility.description,
-        registrationNumber: facility.registrationNumber,
-        taxNumber:          facility.taxNumber,
-        services:           Array.isArray(facility.services)        ? facility.services.join(',')        : (facility.services        ?? ''),
-        specializations:    Array.isArray(facility.specializations) ? facility.specializations.join(',') : (facility.specializations ?? ''),
-        facilities:         Array.isArray(facility.facilities)      ? facility.facilities.join(',')      : (facility.facilities      ?? ''),
-        totalBeds:          facility.totalBeds ?? 0,
-        availableBeds:      facility.availableBeds ?? facility.totalBeds ?? 0,
-        emergencyAvailable: facility.emergencyAvailable ?? true,
-        ambulanceAvailable: facility.ambulanceAvailable ?? false,
-        canAcceptEmergency: facility.canAcceptEmergency ?? true,
-        openingHours:       JSON.stringify(facility.openingHours ?? { mode: '24/7' }),
-        registrationStatus: 'PENDING',  // L'admin du système doit approuver
-        verified:           false,
-      },
-    });
-
-    const user = await tx.user.create({
-      data: {
-        email:        admin.email,
-        password:     hashedPassword,
-        role:         'HOSPITAL_ADMIN',
-        status:       'ACTIVE',
-        firstName:    admin.firstName,
-        lastName:     admin.lastName,
-        phone:        admin.phone,
-        city:         facility.city,
-        region:       facility.region,
-        country:      'Sénégal',
-        hospitalId:   hospital.id,
-      },
-    });
-
-    return { hospital, user };
-  });
-
-  const token = generateToken(result.user.id, result.user.email, result.user.role);
-
-  res.status(201).json({
-    success: true,
-    message: 'Inscription réussie. En attente de validation par l\'administrateur.',
-    data: {
-      facility: {
-        id:                 result.hospital.id,
-        name:               result.hospital.name,
-        type:               result.hospital.type,
-        registrationStatus: result.hospital.registrationStatus,
-      },
-      user: {
-        userId:    result.user.id,
-        email:     result.user.email,
-        role:      result.user.role,
-        firstName: result.user.firstName,
-        lastName:  result.user.lastName,
-      },
-      token,
-    },
-  });
-});
 
 // ── GET /api/facilities/my-facility ────────────────────────────────────────────
 // HOSPITAL_ADMIN récupère sa propre structure
@@ -260,4 +146,126 @@ export const getPendingFacilities = asyncHandler(async (req: AuthRequest, res: R
   });
 
   res.json({ success: true, data: facilities });
+});
+
+// ── GET /api/facilities/:id/managers ───────────────────────────────────────────
+// ADMIN : liste les gestionnaires (HOSPITAL_ADMIN) liés à l'établissement
+export const listManagers = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { role } = req.user!;
+  if ((role as string) !== 'ADMIN') throw new AppError('Accès réservé à l\'administrateur', 403);
+
+  const { id } = req.params;
+  const hospital = await prisma.hospital.findUnique({
+    where: { id },
+    include: {
+      admins: {
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          phone: true, status: true, createdAt: true,
+        },
+      },
+    },
+  });
+
+  if (!hospital) throw new AppError('Établissement introuvable', 404);
+  res.json({ success: true, data: hospital.admins });
+});
+
+// ── POST /api/facilities/:id/managers ──────────────────────────────────────────
+// ADMIN : désigne un gestionnaire (par email existant OU création d'un nouveau compte)
+export const assignManager = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { role } = req.user!;
+  if ((role as string) !== 'ADMIN') throw new AppError('Accès réservé à l\'administrateur', 403);
+
+  const { id } = req.params;
+  const { email, password, firstName, lastName, phone, mode } = req.body;
+
+  if (!email) throw new AppError('Email requis', 400);
+
+  const hospital = await prisma.hospital.findUnique({ where: { id } });
+  if (!hospital) throw new AppError('Établissement introuvable', 404);
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+
+  let userId: string;
+  if (mode === 'existing') {
+    // Promouvoir un utilisateur existant en HOSPITAL_ADMIN
+    if (!existing) throw new AppError('Aucun utilisateur trouvé avec cet email', 404);
+    if (existing.hospitalId && existing.hospitalId !== id) {
+      throw new AppError('Cet utilisateur gère déjà un autre établissement', 400);
+    }
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: { role: 'HOSPITAL_ADMIN', hospitalId: id, status: 'ACTIVE' },
+    });
+    userId = updated.id;
+  } else {
+    // Créer un nouveau compte
+    if (existing) throw new AppError('Cet email est déjà utilisé. Utilisez le mode "existing".', 400);
+    if (!password || password.length < 8) throw new AppError('Mot de passe requis (8 caractères min)', 400);
+    if (!firstName || !lastName || !phone) throw new AppError('Prénom, nom et téléphone requis', 400);
+
+    const hash = await bcrypt.hash(password, 10);
+    const created = await prisma.user.create({
+      data: {
+        email, password: hash,
+        role: 'HOSPITAL_ADMIN', status: 'ACTIVE',
+        firstName, lastName, phone,
+        city: hospital.city, region: hospital.region, country: 'Sénégal',
+        hospitalId: id,
+      },
+    });
+    userId = created.id;
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Gestionnaire désigné avec succès',
+    data: { userId, hospitalId: id, hospitalName: hospital.name },
+  });
+});
+
+// ── DELETE /api/facilities/:id/managers/:userId ───────────────────────────────
+// ADMIN : retire le rôle de gestionnaire (le compte reste mais perd l'accès à l'établissement)
+export const removeManager = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { role } = req.user!;
+  if ((role as string) !== 'ADMIN') throw new AppError('Accès réservé à l\'administrateur', 403);
+
+  const { id, userId } = req.params;
+  const user = await prisma.user.findFirst({ where: { id: userId, hospitalId: id } });
+  if (!user) throw new AppError('Gestionnaire introuvable pour cet établissement', 404);
+
+  // Détacher : remettre en PATIENT (par défaut) et retirer hospitalId
+  await prisma.user.update({
+    where: { id: userId },
+    data: { hospitalId: null, role: 'PATIENT' },
+  });
+
+  res.json({ success: true, message: 'Gestionnaire retiré' });
+});
+
+// ── GET /api/facilities/search-users?email=... ─────────────────────────────────
+// ADMIN : recherche d'utilisateurs existants pour désignation (par email partiel)
+export const searchUsersForManager = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { role } = req.user!;
+  if ((role as string) !== 'ADMIN') throw new AppError('Accès réservé à l\'administrateur', 403);
+
+  const { email } = req.query;
+  if (!email || (email as string).length < 3) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      email: { contains: email as string, mode: 'insensitive' },
+      role: { in: ['PATIENT', 'DOCTOR', 'HOSPITAL_ADMIN'] },
+    },
+    select: {
+      id: true, email: true, firstName: true, lastName: true,
+      phone: true, role: true, hospitalId: true,
+    },
+    take: 10,
+  });
+
+  res.json({ success: true, data: users });
 });
