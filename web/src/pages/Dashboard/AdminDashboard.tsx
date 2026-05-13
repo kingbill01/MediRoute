@@ -258,6 +258,15 @@ const DoctorsTab: React.FC = () => {
     } catch { toast.error('Erreur'); }
   };
 
+  const toggleAccountStatus = async (userId: string, current: string) => {
+    const next = current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await api.put(`/admin/users/${userId}/status`, { status: next });
+      setDoctors(ds => ds.map(d => d.userId === userId ? { ...d, status: next } : d));
+      toast.success('Compte ' + (next === 'ACTIVE' ? 'activé' : 'désactivé'));
+    } catch { toast.error('Erreur'); }
+  };
+
   const statusColor: Record<string, any> = {
     APPROVED: 'success', PENDING: 'warning', REJECTED: 'error',
   };
@@ -311,27 +320,42 @@ const DoctorsTab: React.FC = () => {
                   <TableCell><Typography sx={{ fontSize: 13.5 }}>{d.doctorInfo?.specialization}</Typography></TableCell>
                   <TableCell><Typography sx={{ fontSize: 13, color: '#64748B', fontFamily: 'monospace' }}>{d.doctorInfo?.licenseNumber}</Typography></TableCell>
                   <TableCell>
-                    <Chip
-                      label={d.doctorInfo?.verificationStatus ?? 'PENDING'}
-                      color={statusColor[d.doctorInfo?.verificationStatus] ?? 'default'}
-                      size="small" sx={{ fontWeight: 600 }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Chip
+                        label={d.doctorInfo?.verificationStatus ?? 'PENDING'}
+                        color={statusColor[d.doctorInfo?.verificationStatus] ?? 'default'}
+                        size="small" sx={{ fontWeight: 600 }}
+                      />
+                      <Chip
+                        label={d.status === 'ACTIVE' ? 'Compte actif' : 'Compte désactivé'}
+                        color={d.status === 'ACTIVE' ? 'success' : 'default'}
+                        size="small" variant="outlined" sx={{ fontWeight: 500, fontSize: 10 }}
+                      />
+                    </Box>
                   </TableCell>
                   <TableCell align="right">
-                    {d.doctorInfo?.verificationStatus === 'PENDING' && (
-                      <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end' }}>
-                        <Button size="small" variant="contained" color="success"
-                          onClick={() => setVerifyDialog({ open: true, doc: d, action: 'APPROVED' })}
-                          sx={{ borderRadius: 1.5, fontSize: 12, py: 0.5 }}>
-                          Approuver
-                        </Button>
-                        <Button size="small" variant="outlined" color="error"
-                          onClick={() => setVerifyDialog({ open: true, doc: d, action: 'REJECTED' })}
-                          sx={{ borderRadius: 1.5, fontSize: 12, py: 0.5 }}>
-                          Rejeter
-                        </Button>
-                      </Box>
-                    )}
+                    <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      {d.doctorInfo?.verificationStatus === 'PENDING' && (
+                        <>
+                          <Button size="small" variant="contained" color="success"
+                            onClick={() => setVerifyDialog({ open: true, doc: d, action: 'APPROVED' })}
+                            sx={{ borderRadius: 1.5, fontSize: 12, py: 0.5 }}>
+                            Approuver
+                          </Button>
+                          <Button size="small" variant="outlined" color="error"
+                            onClick={() => setVerifyDialog({ open: true, doc: d, action: 'REJECTED' })}
+                            sx={{ borderRadius: 1.5, fontSize: 12, py: 0.5 }}>
+                            Rejeter
+                          </Button>
+                        </>
+                      )}
+                      <Button size="small" variant="outlined"
+                        color={d.status === 'ACTIVE' ? 'error' : 'success'}
+                        onClick={() => toggleAccountStatus(d.userId, d.status)}
+                        sx={{ borderRadius: 1.5, fontSize: 12, py: 0.5 }}>
+                        {d.status === 'ACTIVE' ? 'Désactiver' : 'Activer'}
+                      </Button>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
