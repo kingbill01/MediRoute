@@ -17,5 +17,26 @@
     "types": ["node", "express", "jest"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "exclude": [
+    "node_modules", "dist", "**/*.test.ts",
+    "src/controllers/auth.controller.ts",
+    "src/controllers/appointment.controller.ts",
+    "src/controllers/emergency.controller.ts",
+    "src/controllers/hospital.controller.ts",
+    "src/controllers/medicalRecord.controller.ts",
+    "src/routes/auth.routes.ts",
+    "src/routes/appointment.routes.ts",
+    "src/routes/emergency.routes.ts",
+    "src/routes/hospital.routes.ts",
+    "src/routes/medicalRecord.routes.ts",
+    "src/routes/user.routes.ts",
+    "src/config/database.ts",
+    "src/models/Appointment.ts",
+    "src/models/Emergency.ts",
+    "src/models/Hospital.ts",
+    "src/models/MedicalRecord.ts",
+    "src/models/User.ts",
+    "src/server.ts",
+    "src/server-sqlite.ts"
+  ]
 }

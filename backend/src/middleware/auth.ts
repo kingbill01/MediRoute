@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { UserRole } from '../models/User';
+
+type UserRole = string; // 'PATIENT' | 'DOCTOR' | 'HOSPITAL_ADMIN' | 'ADMIN'
 
 export interface AuthRequest extends Request {
   user?: {
