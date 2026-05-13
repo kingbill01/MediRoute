@@ -103,8 +103,14 @@ const statusChip = (s: string) => {
   return <Chip label={c.label} color={c.color} size="small" sx={{ fontWeight: 600 }} />;
 };
 
-const StatCard: React.FC<{ label: string; value: number; color: string; icon: React.ReactNode }> = ({ label, value, color, icon }) => (
-  <Card sx={{ borderRadius: 3, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+const StatCard: React.FC<{ label: string; value: number; color: string; icon: React.ReactNode; onClick?: () => void }> = ({ label, value, color, icon, onClick }) => (
+  <Card
+    onClick={onClick}
+    sx={{
+      borderRadius: 3, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+      cursor: onClick ? 'pointer' : 'default', transition: 'all .18s',
+      ...(onClick && { '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' } }),
+    }}>
     <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '18px !important' }}>
       <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {React.cloneElement(icon as React.ReactElement, { sx: { color: '#fff', fontSize: 24 } })}

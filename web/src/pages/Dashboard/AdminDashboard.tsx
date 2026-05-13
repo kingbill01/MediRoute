@@ -95,16 +95,37 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; onItemClick?
 };
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
-const KpiCard: React.FC<{ label: string; value: number | string; sub?: string; color: string; icon: React.ReactNode }> = ({ label, value, sub, color, icon }) => (
-  <Card sx={{ borderRadius: 3, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+const KpiCard: React.FC<{
+  label: string; value: number | string; sub?: string;
+  color: string; icon: React.ReactNode; onClick?: () => void;
+}> = ({ label, value, sub, color, icon, onClick }) => (
+  <Card
+    onClick={onClick}
+    sx={{
+      borderRadius: 3, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+      cursor: onClick ? 'pointer' : 'default',
+      transition: 'all .18s',
+      ...(onClick && {
+        '&:hover': {
+          transform: 'translateY(-3px)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          '& .kpi-icon': { transform: 'scale(1.08) rotate(-3deg)' },
+        },
+      }),
+    }}>
     <CardContent sx={{ p: '20px !important' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
           <Typography sx={{ fontSize: 13, color: '#64748B', fontWeight: 500, mb: 0.5 }}>{label}</Typography>
           <Typography sx={{ fontSize: 30, fontWeight: 800, color: '#0F2D52', lineHeight: 1 }}>{value}</Typography>
           {sub && <Typography sx={{ fontSize: 12, color: '#9CA3AF', mt: 0.5 }}>{sub}</Typography>}
+          {onClick && <Typography sx={{ fontSize: 11, color: color, fontWeight: 600, mt: 1, display: 'flex', alignItems: 'center', gap: 0.3 }}>Voir détails →</Typography>}
         </Box>
-        <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box className="kpi-icon" sx={{
+          width: 46, height: 46, borderRadius: '12px', bgcolor: color,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'transform .25s',
+        }}>
           {React.cloneElement(icon as React.ReactElement, { sx: { color: '#fff', fontSize: 22 } })}
         </Box>
       </Box>
@@ -113,7 +134,7 @@ const KpiCard: React.FC<{ label: string; value: number | string; sub?: string; c
 );
 
 // ── Tableau de bord ───────────────────────────────────────────────────────────
-const StatsTab: React.FC = () => {
+const StatsTab: React.FC<{ setTab: (n: number) => void }> = ({ setTab }) => {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -135,29 +156,39 @@ const StatsTab: React.FC = () => {
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} md={3}>
-          <KpiCard label="Patients" value={users?.patients ?? 0} color="#0F2D52" icon={<People />} />
+          <KpiCard label="Patients" value={users?.patients ?? 0} color="#0F2D52" icon={<People />}
+            onClick={() => setTab(2)} />
         </Grid>
         <Grid item xs={6} md={3}>
-          <KpiCard label="Médecins approuvés" value={users?.approvedDoctors ?? 0} sub={`${users?.pendingDoctors ?? 0} en attente`} color="#00A896" icon={<MedicalServices />} />
+          <KpiCard label="Médecins approuvés" value={users?.approvedDoctors ?? 0} sub={`${users?.pendingDoctors ?? 0} en attente`} color="#00A896" icon={<MedicalServices />}
+            onClick={() => setTab(1)} />
         </Grid>
         <Grid item xs={6} md={3}>
-          <KpiCard label="Hôpitaux" value={hospitals?.total ?? 0} color="#4A5568" icon={<LocalHospital />} />
+          <KpiCard label="Hôpitaux" value={hospitals?.total ?? 0} color="#4A5568" icon={<LocalHospital />}
+            onClick={() => setTab(3)} />
         </Grid>
         <Grid item xs={6} md={3}>
-          <KpiCard label="Rendez-vous" value={appointments?.total ?? 0} sub={`${appointments?.pending ?? 0} en attente`} color="#D69E2E" icon={<CalendarMonth />} />
+          <KpiCard label="Rendez-vous" value={appointments?.total ?? 0} sub={`${appointments?.pending ?? 0} en attente`} color="#D69E2E" icon={<CalendarMonth />}
+            onClick={() => setTab(1)} />
         </Grid>
       </Grid>
 
       {/* Alertes */}
       {(users?.pendingDoctors ?? 0) > 0 && (
-        <Paper elevation={0} sx={{ border: '1px solid #FED7AA', borderRadius: 3, p: 2.5, mb: 2, bgcolor: '#FFFBEB', display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Paper elevation={0} onClick={() => setTab(1)} sx={{
+          border: '1px solid #FED7AA', borderRadius: 3, p: 2.5, mb: 2, bgcolor: '#FFFBEB',
+          display: 'flex', alignItems: 'center', gap: 2,
+          cursor: 'pointer', transition: 'all .15s',
+          '&:hover': { bgcolor: '#FEF3C7', borderColor: '#FBBF24' },
+        }}>
           <Pending sx={{ color: '#D69E2E', fontSize: 22 }} />
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontWeight: 600, fontSize: 14, color: '#92400E' }}>
               {users.pendingDoctors} médecin(s) en attente de validation
             </Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#B45309' }}>Rendez-vous dans l'onglet Médecins pour approuver ou rejeter</Typography>
+            <Typography sx={{ fontSize: 12.5, color: '#B45309' }}>Cliquez pour ouvrir l'onglet Médecins</Typography>
           </Box>
+          <Typography sx={{ color: '#D69E2E', fontWeight: 700 }}>›</Typography>
         </Paper>
       )}
 
@@ -176,7 +207,10 @@ const StatsTab: React.FC = () => {
             </TableHead>
             <TableBody>
               {hospitals.byRegion.map((r: any) => (
-                <TableRow key={r.region} sx={{ '&:hover': { bgcolor: '#F8FAFC' } }}>
+                <TableRow key={r.region} onClick={() => setTab(3)} sx={{
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: '#EEF3FF' },
+                }}>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <FiberManualRecord sx={{ fontSize: 8, color: '#00A896' }} />
@@ -1616,7 +1650,7 @@ const AdminDashboard: React.FC = () => {
         )}
 
         <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
-          {tab === 0 && <StatsTab />}
+          {tab === 0 && <StatsTab setTab={setTab} />}
           {tab === 1 && <DoctorsTab />}
           {tab === 2 && <PatientsTab />}
           {tab === 3 && <FacilitiesTab />}
