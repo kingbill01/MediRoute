@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import {
   SmartToy, Close, Send, Minimize, DeleteOutline,
-  LocalHospital, ExpandLess,
+  ExpandLess,
 } from '@mui/icons-material';
 import chatbotService, { ChatMessage } from '../services/chatbotService';
 

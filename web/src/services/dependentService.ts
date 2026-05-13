@@ -101,4 +101,5 @@ class DependentService {
   }
 }
 
-export default new DependentService();
+const dependentService = new DependentService();
+export default dependentService;

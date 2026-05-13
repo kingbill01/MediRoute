@@ -87,4 +87,5 @@ class EmergencyService {
   }
 }
 
-export default new EmergencyService();
+const emergencyService = new EmergencyService();
+export default emergencyService;

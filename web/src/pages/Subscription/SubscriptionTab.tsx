@@ -259,8 +259,6 @@ const SubscriptionTab: React.FC = () => {
   }
 
   // ── Vue : pas de souscription / expirée ──────────────────────────────────
-  const mStyle = METHOD_STYLE[method] || { bg: '#F8FAFC', border: '#E2E8F0', text: '#0F2D52' };
-
   return (
     <Box>
       <Typography variant="h5" sx={{ fontWeight: 700, color: '#0F2D52', mb: 0.5 }}>
