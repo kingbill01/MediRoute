@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   Box, Typography, IconButton, CircularProgress, Dialog,
-  DialogTitle, DialogContent, DialogActions, Button, Alert,
+  DialogTitle, DialogContent, DialogActions, Button, Alert, Menu, MenuItem,
 } from '@mui/material';
-import { PhotoCamera, Delete, AddAPhoto, CheckCircle } from '@mui/icons-material';
+import { PhotoCamera, Delete, AddAPhoto, CheckCircle, PhotoLibrary } from '@mui/icons-material';
 
 interface Props {
   /** Image actuelle (base64 data URI ou URL) */
@@ -63,7 +63,9 @@ const resizeToIdFormat = (file: File): Promise<string> => new Promise((resolve, 
 const ProfilePhotoUpload: React.FC<Props> = ({
   value, onChange, initials = '?', size = 120, readOnly = false,
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
@@ -140,7 +142,7 @@ const ProfilePhotoUpload: React.FC<Props> = ({
           {!readOnly && (
             <IconButton
               size="small"
-              onClick={() => inputRef.current?.click()}
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
               disabled={processing}
               sx={{
                 position: 'absolute', bottom: -8, right: -8,
@@ -152,6 +154,22 @@ const ProfilePhotoUpload: React.FC<Props> = ({
               {value ? <PhotoCamera sx={{ fontSize: 18 }} /> : <AddAPhoto sx={{ fontSize: 18 }} />}
             </IconButton>
           )}
+
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+            <MenuItem onClick={() => { setMenuAnchor(null); galleryRef.current?.click(); }}>
+              <PhotoLibrary sx={{ fontSize: 18, mr: 1.5, color: '#0F2D52' }} />
+              Choisir depuis la galerie
+            </MenuItem>
+            <MenuItem onClick={() => { setMenuAnchor(null); cameraRef.current?.click(); }}>
+              <PhotoCamera sx={{ fontSize: 18, mr: 1.5, color: '#00A896' }} />
+              Prendre une photo
+            </MenuItem>
+          </Menu>
         </Box>
 
         <Box>
@@ -160,11 +178,16 @@ const ProfilePhotoUpload: React.FC<Props> = ({
             Format ID (4:5)
           </Typography>
           {!readOnly && (
-            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-              <Button size="small" variant="outlined" onClick={() => inputRef.current?.click()}
+            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+              <Button size="small" variant="outlined" onClick={() => galleryRef.current?.click()}
+                startIcon={<PhotoLibrary />} disabled={processing}
+                sx={{ borderColor: '#0F2D52', color: '#0F2D52', '&:hover': { borderColor: '#0a1d36' } }}>
+                Galerie
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => cameraRef.current?.click()}
                 startIcon={<PhotoCamera />} disabled={processing}
                 sx={{ borderColor: '#00A896', color: '#00A896', '&:hover': { borderColor: '#008f80' } }}>
-                {value ? 'Changer' : 'Ajouter'}
+                Caméra
               </Button>
               {value && (
                 <Button size="small" color="error" onClick={removePhoto}
@@ -176,8 +199,22 @@ const ProfilePhotoUpload: React.FC<Props> = ({
           )}
         </Box>
 
+        {/* Input galerie — pas de capture, ouvre l'explorateur de fichiers / galerie */}
         <input
-          ref={inputRef}
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = '';
+          }}
+        />
+
+        {/* Input caméra — capture="user" déclenche la caméra avant sur mobile */}
+        <input
+          ref={cameraRef}
           type="file"
           accept="image/*"
           capture="user"
@@ -185,7 +222,7 @@ const ProfilePhotoUpload: React.FC<Props> = ({
           onChange={e => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);
-            e.target.value = ''; // reset pour re-choisir le même fichier
+            e.target.value = '';
           }}
         />
       </Box>

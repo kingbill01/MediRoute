@@ -1,12 +1,8 @@
 # Render Blueprint — déploiement automatique du backend MediRoute
 # Doc : https://render.com/docs/blueprint-spec
-
-databases:
-  - name: mediroute-db
-    plan: free
-    databaseName: mediroute
-    user: mediroute_user
-    postgresMajorVersion: 15
+#
+# Stratégie : backend sur Render (gratuit, sans CB),
+# BDD PostgreSQL externe sur Neon (gratuit à vie, vs Render qui expire à 90j)
 
 services:
   - type: web
@@ -23,14 +19,12 @@ services:
       - key: PORT
         value: 8080
       - key: DATABASE_URL
-        fromDatabase:
-          name: mediroute-db
-          property: connectionString
+        sync: false  # ← à coller manuellement (URL Neon)
       - key: JWT_SECRET
-        generateValue: true
+        sync: false  # ← à coller manuellement (générer avec openssl rand -base64 48)
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: CORS_ORIGIN
         value: https://mediroute.qzz.io,https://mediroute.pages.dev,http://localhost:3003
       - key: ANTHROPIC_API_KEY
-        sync: false  # à définir manuellement dans le dashboard Render
+        sync: false  # optionnel — laisser vide pour utiliser le mode dégradé
