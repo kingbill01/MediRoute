@@ -4,13 +4,14 @@ import {
   CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Avatar, MenuItem, Divider, Paper, IconButton, Menu,
   Table, TableBody, TableCell, TableHead, TableRow, InputAdornment,
+  Drawer, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   CalendarMonth, Assignment, Person, LocalHospital, Add,
   CheckCircle, Cancel, Pending, Warning, ExitToApp, MoreVert,
   ArrowForward, AccessTime, FiberManualRecord, Science, Receipt,
   Visibility, VisibilityOff, Save, Lock,
-  Chat, Send, CardMembership, ChildCare,
+  Chat, Send, CardMembership, ChildCare, Menu as MenuIcon,
 } from '@mui/icons-material';
 import SubscriptionTab, { SubscriptionBanner } from '../Subscription/SubscriptionTab';
 import subscriptionService from '../../services/subscriptionService';
@@ -35,13 +36,13 @@ const NAV = [
   { id: 7, icon: <Person />,          label: 'Mon profil' },
 ];
 
-const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, setTab }) => {
+const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void; onItemClick?: () => void }> = ({ tab, setTab, onItemClick }) => {
   const navigate = useNavigate();
   const user = authService.getCurrentUser();
   return (
     <Box sx={{
       width: 240, flexShrink: 0, bgcolor: '#0F2D52', display: 'flex',
-      flexDirection: 'column', minHeight: '100vh', position: 'sticky', top: 0,
+      flexDirection: 'column', minHeight: '100vh',
     }}>
       {/* Logo */}
       <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -61,7 +62,7 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, 
         {NAV.map(n => (
           <Box
             key={n.id}
-            onClick={() => setTab(n.id)}
+            onClick={() => { setTab(n.id); onItemClick?.(); }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1.5,
               px: 2, py: 1.4, borderRadius: 2, cursor: 'pointer', mb: 0.5,
@@ -85,7 +86,7 @@ const Sidebar: React.FC<{ tab: number; setTab: (n: number) => void }> = ({ tab, 
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 2 }} />
 
         <Box
-          onClick={() => navigate(ROUTES.EMERGENCY)}
+          onClick={() => { onItemClick?.(); navigate(ROUTES.EMERGENCY); }}
           sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
             px: 2, py: 1.4, borderRadius: 2, cursor: 'pointer',
@@ -1102,21 +1103,40 @@ const PatientDashboard: React.FC = () => {
       .catch(() => setHasActiveSub(false));
   }, []);
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F4F6F9' }}>
-      <Sidebar tab={tab} setTab={setTab} />
-      <Box sx={{ flex: 1, p: 4, overflowY: 'auto' }}>
-        {hasActiveSub === false && tab !== 6 && (
-          <SubscriptionBanner onSubscribe={() => setTab(6)} />
+      {!isMobile && <Sidebar tab={tab} setTab={setTab} />}
+      {isMobile && (
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          <Sidebar tab={tab} setTab={setTab} onItemClick={() => setDrawerOpen(false)} />
+        </Drawer>
+      )}
+
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        {isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, bgcolor: '#0F2D52', position: 'sticky', top: 0, zIndex: 10 }}>
+            <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#fff' }}><MenuIcon /></IconButton>
+            <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>MediRoute Patient</Typography>
+          </Box>
         )}
-        {tab === 0 && <AppointmentsTab />}
-        {tab === 1 && <MedicalRecordsTab />}
-        {tab === 2 && <LabResultsTab />}
-        {tab === 3 && <InvoicesTab />}
-        {tab === 4 && <MessagingTab />}
-        {tab === 5 && <DependentsTab />}
-        {tab === 6 && <SubscriptionTab />}
-        {tab === 7 && <ProfileTab />}
+
+        <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+          {hasActiveSub === false && tab !== 6 && (
+            <SubscriptionBanner onSubscribe={() => setTab(6)} />
+          )}
+          {tab === 0 && <AppointmentsTab />}
+          {tab === 1 && <MedicalRecordsTab />}
+          {tab === 2 && <LabResultsTab />}
+          {tab === 3 && <InvoicesTab />}
+          {tab === 4 && <MessagingTab />}
+          {tab === 5 && <DependentsTab />}
+          {tab === 6 && <SubscriptionTab />}
+          {tab === 7 && <ProfileTab />}
+        </Box>
       </Box>
       <ChatbotWidget />
     </Box>

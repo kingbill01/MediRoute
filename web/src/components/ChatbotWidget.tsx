@@ -117,12 +117,19 @@ const ChatbotWidget: React.FC = () => {
   const closeWidget = (e: React.MouseEvent) => { e.stopPropagation(); setOpen(false); setMinimized(false); };
 
   return (
-    <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1300, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+    <Box sx={{
+      position: 'fixed',
+      bottom: { xs: 12, sm: 24 },
+      right: { xs: 12, sm: 24 },
+      zIndex: 1300, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1,
+    }}>
 
       {/* ── Fenêtre de chat ─────────────────────────────────────────────── */}
       <Zoom in={open} unmountOnExit>
         <Paper sx={{
-          width: 340, borderRadius: 3, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          width: { xs: 'calc(100vw - 24px)', sm: 340 },
+          maxWidth: 380,
+          borderRadius: 3, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
           border: '1px solid #e8eaed',
           transformOrigin: 'bottom right',
         }}>
