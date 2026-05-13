@@ -40,6 +40,14 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Autoriser MediRoute à accéder à votre localisation pour trouver les hôpitaux les plus proches."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
       ]
     ],
     "extra": {
