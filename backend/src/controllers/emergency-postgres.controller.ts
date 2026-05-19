@@ -393,6 +393,141 @@ export const getEmergencyHistory = asyncHandler(async (req: AuthRequest, res: Re
   res.json({ success: true, data: requests, total: requests.length });
 });
 
+// ── Urgences prioritaires (souscription requise) ─────────────────────────────
+const ACTIVE_EMERGENCY_LIMIT = 4;
+const ACTIVE_STATUSES = ['PENDING', 'ASSIGNED', 'IN_TRANSIT', 'ARRIVED'];
+
+const countActiveEmergencies = async (patientId: string): Promise<number> => {
+  return prisma.emergencyRequest.count({
+    where: { patientId, status: { in: ACTIVE_STATUSES } },
+  });
+};
+
+export const getActiveEmergencyCount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId } = req.user!;
+  const active = await countActiveEmergencies(userId);
+  res.json({
+    success: true,
+    data: { active, limit: ACTIVE_EMERGENCY_LIMIT, remaining: Math.max(0, ACTIVE_EMERGENCY_LIMIT - active) },
+  });
+});
+
+export const submitQuickEmergencyRequest = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId } = req.user!;
+  const {
+    latitude, longitude, address,
+    description, needsAmbulance, severity, // severity: CRITICAL | URGENT | SEMI_URGENT
+    forDependentName,
+  } = req.body;
+
+  if (latitude === undefined || longitude === undefined) {
+    throw new AppError('Localisation (latitude, longitude) requise', 400);
+  }
+
+  const active = await countActiveEmergencies(userId);
+  if (active >= ACTIVE_EMERGENCY_LIMIT) {
+    res.status(429).json({
+      success: false,
+      code: 'EMERGENCY_LIMIT_REACHED',
+      message: `Limite de ${ACTIVE_EMERGENCY_LIMIT} urgences actives atteinte. Veuillez attendre la prise en charge des demandes en cours.`,
+      data: { active, limit: ACTIVE_EMERGENCY_LIMIT },
+    });
+    return;
+  }
+
+  // Auto-remplir avec le profil patient
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { patientInfo: true },
+  });
+  if (!user) throw new AppError('Utilisateur introuvable', 404);
+
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+  const level = ['CRITICAL', 'URGENT', 'SEMI_URGENT'].includes(severity) ? severity : 'URGENT';
+  const wantsAmbulance = needsAmbulance !== false;
+
+  // Trouver l'hôpital le plus proche
+  const hospitals = await prisma.hospital.findMany({
+    where: { canAcceptEmergency: true, emergencyAvailable: true },
+  });
+  let assignedHospital: any = null;
+  let minDistance = Infinity;
+  for (const h of hospitals) {
+    const d = haversineDistance(lat, lng, h.latitude, h.longitude);
+    if (d < minDistance) { minDistance = d; assignedHospital = h; }
+  }
+
+  // Score prioritaire : patients souscrits boostés
+  const baseScore = level === 'CRITICAL' ? 9 : level === 'URGENT' ? 7 : 5;
+  const priorityScore = Math.min(10, baseScore + 1); // +1 priorité abonné
+
+  const patientName = forDependentName
+    ? `${user.firstName} ${user.lastName} (pour ${forDependentName})`
+    : `${user.firstName} ${user.lastName}`;
+
+  const created = await prisma.emergencyRequest.create({
+    data: {
+      patientId: userId,
+      patientName,
+      patientPhone: user.phone,
+      bloodGroup: user.patientInfo?.bloodGroup || null,
+      address: address || null,
+      city: user.city,
+      region: user.region,
+      latitude: lat,
+      longitude: lng,
+      symptoms: '',
+      description: description || 'Demande prioritaire depuis le profil souscripteur',
+      level,
+      hasInjury: false,
+      isConscious: true,
+      canMove: !wantsAmbulance,
+      needsAmbulance: wantsAmbulance,
+      assignedHospitalId: assignedHospital?.id || null,
+      distance: assignedHospital ? Math.round(minDistance * 10) / 10 : null,
+      estimatedArrival: assignedHospital
+        ? Math.round((minDistance / 60) * 60 + (assignedHospital.waitingTime || 0))
+        : null,
+      status: assignedHospital ? 'ASSIGNED' : 'PENDING',
+      priorityScore,
+      formResponses: JSON.stringify({
+        source: 'profile_quick',
+        subscriber: true,
+        allergies: user.patientInfo?.allergies || null,
+        chronicConditions: user.patientInfo?.chronicConditions || null,
+        emergencyContact: user.patientInfo?.emergencyContactPhone || null,
+      }),
+      timeline: JSON.stringify([
+        { status: 'CREATED', source: 'profile_quick', timestamp: new Date().toISOString() },
+      ]),
+    },
+    include: { assignedHospital: true },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Demande prioritaire envoyée. Prise en charge en cours.',
+    data: {
+      requestId: created.id,
+      status: created.status,
+      priorityScore: created.priorityScore,
+      level: created.level,
+      assignedHospital: created.assignedHospital
+        ? {
+            name: created.assignedHospital.name,
+            address: created.assignedHospital.address,
+            phone: created.assignedHospital.emergencyPhone,
+            distance: created.distance,
+            estimatedArrival: created.estimatedArrival,
+          }
+        : null,
+      active: active + 1,
+      limit: ACTIVE_EMERGENCY_LIMIT,
+    },
+  });
+});
+
 export const updateEmergencyStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
   const role = req.user?.role as string;
   if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(role)) {
