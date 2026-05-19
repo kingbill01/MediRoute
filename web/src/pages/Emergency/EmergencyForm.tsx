@@ -5,6 +5,7 @@ import {
   FormGroup, FormControlLabel, CircularProgress, Alert, List, ListItem,
   ListItemText, Chip, Stack,
 } from '@mui/material';
+import PhoneIcon from '@mui/icons-material/Phone';
 import { useNavigate } from 'react-router-dom';
 import emergencyService, {
   EmergencyFormQuestion,
@@ -14,19 +15,18 @@ const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const SECTION_COLOR: Record<string, string> = {
   'Identité du patient':       '#0F2D52',
-  'État de conscience':        '#7B2D8B',
-  'Respiration':               '#1565C0',
-  'Douleur thoracique':        '#C62828',
-  'Blessures & Saignements':   '#E65100',
+  'Gravité':                   '#7B2D8B',
   'Symptômes principaux':      '#2E7D32',
-  'Durée des symptômes':       '#00695C',
-  'Antécédents médicaux':      '#4527A0',
-  'Médicaments & Allergies':   '#1565C0',
-  'Mobilité':                  '#558B2F',
+  'Description':               '#4E342E',
   'Transport':                 '#00838F',
-  'Description de la situation': '#4E342E',
   'Localisation':              '#283593',
 };
+
+const EMERGENCY_NUMBERS = [
+  { name: 'SAMU',     number: '15', color: '#d32f2f' },
+  { name: 'Pompiers', number: '18', color: '#ff6f00' },
+  { name: 'Police',   number: '17', color: '#1976d2' },
+];
 
 const EmergencyForm: React.FC = () => {
   const navigate = useNavigate();
@@ -285,13 +285,34 @@ const EmergencyForm: React.FC = () => {
         <Paper elevation={3} sx={{ p: 4 }}>
           {/* Bandeau urgence */}
           <Box sx={{
-            bgcolor: '#C62828', borderRadius: 2, py: 1.5, px: 3, mb: 3,
+            bgcolor: '#C62828', borderRadius: 2, py: 1.5, px: 3, mb: 2,
             display: 'flex', alignItems: 'center', gap: 1,
           }}>
             <Typography variant="h6" color="white" fontWeight={800} letterSpacing={1}>
               🚨 URGENCE MÉDICALE
             </Typography>
           </Box>
+
+          {/* Numéros d'urgence */}
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
+              En cas de danger immédiat, appelez :
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {EMERGENCY_NUMBERS.map((s) => (
+                <Button
+                  key={s.number}
+                  size="small"
+                  variant="contained"
+                  startIcon={<PhoneIcon />}
+                  href={`tel:${s.number}`}
+                  sx={{ bgcolor: s.color, '&:hover': { bgcolor: s.color, opacity: 0.9 } }}
+                >
+                  {s.name} · {s.number}
+                </Button>
+              ))}
+            </Stack>
+          </Alert>
 
           {/* Stepper */}
           <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3, overflowX: 'auto' }}>
