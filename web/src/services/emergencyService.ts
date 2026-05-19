@@ -76,6 +76,24 @@ class EmergencyService {
     return response.data.data.requests;
   }
 
+  async getActiveCount(): Promise<{ active: number; limit: number; remaining: number }> {
+    const response = await api.get('/emergency/active-count');
+    return response.data.data;
+  }
+
+  async submitQuickRequest(payload: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+    description?: string;
+    needsAmbulance?: boolean;
+    severity?: 'CRITICAL' | 'URGENT' | 'SEMI_URGENT';
+    forDependentName?: string;
+  }): Promise<any> {
+    const response = await api.post('/emergency/quick', payload);
+    return response.data;
+  }
+
   getUserLocation(): Promise<GeolocationPosition> {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {

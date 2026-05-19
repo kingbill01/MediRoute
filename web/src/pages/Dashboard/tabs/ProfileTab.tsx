@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Grid,
   Paper,
@@ -9,9 +9,9 @@ import {
   TextField,
   Button,
   Avatar,
-  Divider,
   Chip,
-  IconButton,
+  Alert,
+  LinearProgress,
 } from '@mui/material';
 import {
   Edit,
@@ -26,12 +26,46 @@ import {
   Bloodtype,
   LocalHospital,
   ContactEmergency,
+  Bolt,
+  DirectionsCar,
+  WorkspacePremium,
 } from '@mui/icons-material';
 import authService from '../../../services/authService';
+import subscriptionService, { Subscription } from '../../../services/subscriptionService';
+import emergencyService from '../../../services/emergencyService';
+import QuickEmergencyDialog from '../../../components/QuickEmergencyDialog';
+
+const EMERGENCY_NUMBERS = [
+  { name: 'SAMU', number: '15', color: '#d32f2f', icon: '🚑' },
+  { name: 'Pompiers', number: '18', color: '#ff6f00', icon: '🚒' },
+  { name: 'Police', number: '17', color: '#1976d2', icon: '🚓' },
+];
 
 const ProfileTab: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const user = authService.getCurrentUser();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [activeCount, setActiveCount] = useState<{ active: number; limit: number; remaining: number } | null>(null);
+  const [quickDialogOpen, setQuickDialogOpen] = useState(false);
+  const isSubscribedPatient = !!(
+    user?.role === 'PATIENT' &&
+    subscription?.isActive
+  );
+
+  useEffect(() => {
+    if (user?.role !== 'PATIENT') return;
+    subscriptionService.getMySubscription()
+      .then((r) => setSubscription(r.data))
+      .catch(() => setSubscription(null));
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (!isSubscribedPatient) return;
+    emergencyService.getActiveCount()
+      .then(setActiveCount)
+      .catch(() => setActiveCount(null));
+  }, [isSubscribedPatient, quickDialogOpen]);
+
   const [formData, setFormData] = useState({
     firstName: user?.profile?.firstName || '',
     lastName: user?.profile?.lastName || '',
@@ -59,8 +93,148 @@ const ProfileTab: React.FC = () => {
     // Reset form data
   };
 
+  const emergencyContactPhone = formData.emergencyContactPhone;
+  const limitReached = !!activeCount && activeCount.active >= activeCount.limit;
+
   return (
     <Grid container spacing={3}>
+      {/* Urgences prioritaires — patients souscrits uniquement */}
+      {isSubscribedPatient && (
+        <Grid item xs={12}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: 3,
+              border: '2px solid',
+              borderColor: '#d32f2f',
+              background: 'linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%)',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Bolt sx={{ color: '#d32f2f', fontSize: 32 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#b71c1c' }}>
+                      Urgences prioritaires
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Accès rapide pour abonnés MediRoute
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    icon={<WorkspacePremium />}
+                    label="Abonné"
+                    size="small"
+                    sx={{ bgcolor: '#d32f2f', color: 'white', fontWeight: 600 }}
+                  />
+                  {activeCount && (
+                    <Chip
+                      label={`${activeCount.active}/${activeCount.limit} actives`}
+                      size="small"
+                      color={limitReached ? 'error' : 'default'}
+                      variant={limitReached ? 'filled' : 'outlined'}
+                    />
+                  )}
+                </Box>
+              </Box>
+
+              {activeCount && (
+                <Box sx={{ mb: 2 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(activeCount.active / activeCount.limit) * 100}
+                    color={limitReached ? 'error' : 'warning'}
+                    sx={{ height: 6, borderRadius: 3 }}
+                  />
+                </Box>
+              )}
+
+              {limitReached && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  Limite de {activeCount?.limit} urgences actives atteinte. Attendez la prise en charge des demandes en cours.
+                </Alert>
+              )}
+
+              <Grid container spacing={1.5}>
+                {EMERGENCY_NUMBERS.map((s) => (
+                  <Grid item xs={6} sm={3} key={s.number}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      href={`tel:${s.number}`}
+                      startIcon={<Phone />}
+                      sx={{
+                        bgcolor: s.color,
+                        py: 1.5,
+                        fontWeight: 700,
+                        '&:hover': { bgcolor: s.color, filter: 'brightness(0.92)' },
+                      }}
+                    >
+                      {s.name} · {s.number}
+                    </Button>
+                  </Grid>
+                ))}
+                <Grid item xs={6} sm={3}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="error"
+                    onClick={() => setQuickDialogOpen(true)}
+                    disabled={limitReached}
+                    startIcon={<DirectionsCar />}
+                    sx={{ py: 1.5, fontWeight: 700 }}
+                  >
+                    Ambulance
+                  </Button>
+                </Grid>
+              </Grid>
+
+              {emergencyContactPhone && (
+                <Box sx={{ mt: 2, p: 1.5, bgcolor: 'white', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ContactEmergency color="action" fontSize="small" />
+                    <Typography variant="body2">
+                      Contact d'urgence : <strong>{formData.emergencyContactName || 'Proche'}</strong>
+                      {formData.emergencyContactRelationship && ` (${formData.emergencyContactRelationship})`}
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<Phone />}
+                    href={`tel:${emergencyContactPhone}`}
+                  >
+                    {emergencyContactPhone}
+                  </Button>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+
+      {/* CTA souscription — patient non souscrit */}
+      {user?.role === 'PATIENT' && subscription !== null && !subscription?.isActive && (
+        <Grid item xs={12}>
+          <Alert
+            severity="info"
+            icon={<WorkspacePremium />}
+            action={
+              <Button size="small" href="#" onClick={(e) => { e.preventDefault(); window.location.hash = '#subscription'; }}>
+                Souscrire
+              </Button>
+            }
+            sx={{ borderRadius: 2 }}
+          >
+            <strong>Urgences prioritaires</strong> — Souscrivez pour accéder à l'envoi d'ambulance en 1 clic depuis votre profil.
+          </Alert>
+        </Grid>
+      )}
+
       {/* En-tête profil */}
       <Grid item xs={12}>
         <Card 
@@ -398,6 +572,11 @@ const ProfileTab: React.FC = () => {
           </Paper>
         </Grid>
       )}
+
+      <QuickEmergencyDialog
+        open={quickDialogOpen}
+        onClose={() => setQuickDialogOpen(false)}
+      />
     </Grid>
   );
 };
